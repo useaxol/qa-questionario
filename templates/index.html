@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>QA de Questionário</title>
+</head>
+<body>
+    <h2>Teste automático de questionário</h2>
+
+    <form method="POST" enctype="multipart/form-data">
+        <p>
+            <label>Upload do questionário (Word)</label><br>
+            <input type="file" name="word_file" required>
+        </p>
+
+        <p>
+            <label>Link do questionário online</label><br>
+            <input type="text" name="survey_url" style="width:400px" required>
+        </p>
+
+        <button type="submit">Rodar testes</button>
+    </form>
+</body>
+</html>
