@@ -1,0 +1,20 @@
+{% macro severity_badge(assessment) %}
+  {% if assessment %}
+    {% set tone = severity_tone.get(assessment.severity, ('normal', 'Dentro do normal')) %}
+    <span class="badge {{ tone[0] }}"><span class="mark"></span>{{ tone[1] }}</span>
+  {% else %}
+    <span class="badge"><span class="mark"></span>Sem cotação</span>
+  {% endif %}
+{% endmacro %}
+
+{% macro deal_meter(score) %}
+  {% set cls = 'hot' if score >= 85 else ('warm' if score >= 65 else '') %}
+  <div class="meter {{ cls }}"><span style="width: {{ '%.0f'|format(score) }}%"></span></div>
+{% endmacro %}
+
+{% macro trip_line(watch) %}
+  {{ watch.origin }} → {{ watch.destination }} ·
+  {{ watch.departure_date|dt }}{% if watch.return_date %} – {{ watch.return_date|dt }}{% endif %} ·
+  {{ cabin_labels.get(watch.cabin, watch.cabin) }} ·
+  {{ watch.passengers }} pax{% if watch.flex_days %} · ±{{ watch.flex_days }}d{% endif %}
+{% endmacro %}

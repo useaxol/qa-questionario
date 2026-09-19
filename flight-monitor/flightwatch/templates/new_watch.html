@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Nova rota · Monitor de passagens{% endblock %}
+{% block content %}
+
+<h1>Monitorar uma nova rota</h1>
+<p class="subtitle">
+  Qualquer origem e destino do mundo. O monitor cota periodicamente e compara cada
+  cotação com o padrão histórico daquela rota naquele período do ano.
+</p>
+
+<form class="stacked" method="post">
+  <div class="field-row">
+    <div>
+      <label for="origin">Origem (IATA)</label>
+      <input id="origin" name="origin" list="airports" required maxlength="3"
+             placeholder="GRU" value="{{ form.get('origin', '') }}" autocomplete="off">
+    </div>
+    <div>
+      <label for="destination">Destino (IATA)</label>
+      <input id="destination" name="destination" list="airports" required maxlength="3"
+             placeholder="LIS" value="{{ form.get('destination', '') }}" autocomplete="off">
+    </div>
+  </div>
+  <datalist id="airports">
+    {% for ap in airports_list %}<option value="{{ ap.iata }}">{{ ap.city }}, {{ ap.country }} — {{ ap.name }}</option>{% endfor %}
+  </datalist>
+
+  <div class="field-row">
+    <div>
+      <label for="trip_type">Tipo</label>
+      <select id="trip_type" name="trip_type">
+        <option value="round" {{ 'selected' if form.get('trip_type') != 'oneway' }}>Ida e volta</option>
+        <option value="oneway" {{ 'selected' if form.get('trip_type') == 'oneway' }}>Somente ida</option>
+      </select>
+    </div>
+    <div>
+      <label for="departure_date">Ida</label>
+      <input id="departure_date" name="departure_date" type="date" required value="{{ form.get('departure_date', '') }}">
+    </div>
+    <div>
+      <label for="return_date">Volta</label>
+      <input id="return_date" name="return_date" type="date" value="{{ form.get('return_date', '') }}">
+    </div>
+  </div>
+
+  <div class="field-row">
+    <div>
+      <label for="cabin">Cabine</label>
+      <select id="cabin" name="cabin">
+        {% for c in cabins %}
+          <option value="{{ c }}" {{ 'selected' if form.get('cabin') == c }}>{{ cabin_labels.get(c, c) }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="passengers">Passageiros</label>
+      <input id="passengers" name="passengers" type="number" min="1" max="9" value="{{ form.get('passengers', 1) }}">
+    </div>
+    <div>
+      <label for="flex_days">Flexibilidade de data</label>
+      <select id="flex_days" name="flex_days">
+        {% for d in [0, 1, 2, 3, 5, 7] %}
+          <option value="{{ d }}" {{ 'selected' if form.get('flex_days')|string == d|string }}>
+            {{ 'data exata' if d == 0 else '± ' ~ d ~ ' dia(s)' }}</option>
+        {% endfor %}
+      </select>
+      <div class="hint">Cotar dias vizinhos acelera a formação do histórico.</div>
+    </div>
+  </div>
+
+  <div class="field-row">
+    <div>
+      <label for="max_stops">Máximo de paradas</label>
+      <select id="max_stops" name="max_stops">
+        <option value="any">Qualquer</option>
+        <option value="0" {{ 'selected' if form.get('max_stops') == '0' }}>Somente direto</option>
+        <option value="1" {{ 'selected' if form.get('max_stops') == '1' }}>Até 1 parada</option>
+        <option value="2" {{ 'selected' if form.get('max_stops') == '2' }}>Até 2 paradas</option>
+      </select>
+    </div>
+    <div>
+      <label for="target_price">Preço-alvo (opcional)</label>
+      <input id="target_price" name="target_price" inputmode="decimal" placeholder="4200"
+             value="{{ form.get('target_price', '') }}">
+      <div class="hint">Alerta garantido se o total ficar igual ou abaixo disso.</div>
+    </div>
+    <div>
+      <label for="label">Apelido (opcional)</label>
+      <input id="label" name="label" placeholder="Férias em Lisboa" value="{{ form.get('label', '') }}">
+    </div>
+  </div>
+
+  <div class="checkbox">
+    <input id="collect_now" name="collect_now" type="checkbox" checked>
+    <label for="collect_now" style="margin:0">Fazer a primeira cotação agora</label>
+  </div>
+
+  <div><button class="btn" type="submit">Começar a monitorar</button></div>
+</form>
+
+{% endblock %}

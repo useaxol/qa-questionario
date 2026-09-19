@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% from "_macros.html" import severity_badge, deal_meter, trip_line with context %}
+{% block content %}
+
+<h1>Painel</h1>
+<p class="subtitle">
+  Cada rota é comparada ao seu próprio preço padrão — o que aquela rota costuma custar
+  naquele período do ano, comprando com aquela antecedência. O alerta dispara quando a
+  cotação cai fora dessa faixa, não quando cai um pouco.
+</p>
+
+{% if cards %}
+  {% if best and best.assessment %}
+  <div class="card" style="margin-bottom:18px">
+    <h3>Melhor oportunidade agora</h3>
+    <div class="hero">
+      <span class="figure">
+        {% if best.assessment.discount_pct > 0 %}−{{ '%.0f'|format(best.assessment.discount_pct) }}%{% else %}{{ best.latest.price|money(best.watch.currency) }}{% endif %}
+      </span>
+      <span class="context">
+        <strong>{{ best.watch.display_name }}</strong> ·
+        {{ best.latest.price|money(best.watch.currency) }}
+        contra {{ (best.assessment.expected_price * best.watch.passengers)|money(best.watch.currency) }} esperados ·
+        {{ severity_badge(best.assessment) }}
+        <br>{{ trip_line(best.watch) }}
+      </span>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="grid stats" style="margin-bottom:26px">
+    <div class="card stat">
+      <div class="label">Rotas monitoradas</div>
+      <div class="value">{{ stats.active }}</div>
+      <div class="foot">{{ cards|length }} cadastradas</div>
+    </div>
+    <div class="card stat">
+      <div class="label">Cotações no histórico</div>
+      <div class="value">{{ '{:,}'.format(stats.observations).replace(',', '.') }}</div>
+      <div class="foot">{{ stats.routes }} rota(s) com série própria</div>
+    </div>
+    <div class="card stat">
+      <div class="label">Alertas em 30 dias</div>
+      <div class="value">{{ stats.alerts_30d }}</div>
+      <div class="foot">{{ deals|length }} oportunidade(s) abertas agora</div>
+    </div>
+    <div class="card stat">
+      <div class="label">Economia potencial</div>
+      <div class="value">{{ potential|money('BRL') if potential else '—' }}</div>
+      <div class="foot">soma das quedas abaixo do padrão</div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <a class="btn" href="{{ url_for('new_watch') }}">Nova rota</a>
+    <form method="post" action="{{ url_for('collect') }}"><button class="btn ghost" type="submit">Coletar agora</button></form>
+    <span class="spacer"></span>
+    <a class="btn link" href="{{ url_for('api_watches') }}">API JSON</a>
+  </div>
+
+  <div class="list">
+    {% for card in cards %}
+      {% set w = card.watch %}{% set a = card.assessment %}
+      <div class="watch-row {{ 'paused' if not w.active }}">
+        <div>
+          <div class="route"><a href="{{ url_for('watch_detail', watch_id=w.id) }}">{{ w.display_name }}</a></div>
+          <div class="meta">{{ trip_line(w) }}</div>
+        </div>
+        <div>
+          {% if card.latest %}
+            <div class="price">{{ card.latest.price|money(w.currency) }}</div>
+            <div class="delta">
+              {% if a and a.method != 'insufficient' %}
+                padrão {{ (a.expected_price * w.passengers)|money(w.currency) }}
+                · {{ a.delta_label }}
+              {% else %}
+                histórico em formação
+              {% endif %}
+            </div>
+          {% else %}
+            <div class="delta">ainda sem cotação</div>
+          {% endif %}
+        </div>
+        <div>
+          {{ severity_badge(a) }}
+          {% if a and a.method != 'insufficient' %}
+            <div style="margin-top:7px">{{ deal_meter(a.deal_score) }}</div>
+            <div class="meta" style="margin-top:4px">nota {{ '%.0f'|format(a.deal_score) }}/100 · confiança {{ confidence_label.get(a.confidence, a.confidence) }}</div>
+          {% endif %}
+        </div>
+        <div class="spark-cell">
+          {{ card.spark|safe }}
+          <div class="meta">{{ card.n_points }} dia(s) de coleta{% if not w.active %} · pausada{% endif %}</div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  {% if alerts %}
+    <h2>Últimos alertas</h2>
+    <div class="list"><table>
+      <thead><tr><th>Quando</th><th>Rota</th><th class="num">Preço</th><th class="num">Padrão</th><th class="num">vs padrão</th><th>Veredito</th></tr></thead>
+      <tbody>
+      {% for alert in alerts %}
+        <tr>
+          <td>{{ alert.created_at|dt('%d/%m %H:%M') }}</td>
+          <td>{{ alert.message }}</td>
+          <td class="num">{{ alert.price|money() }}</td>
+          <td class="num">{{ alert.expected_price|money() }}</td>
+          <td class="num">{{ alert.delta_label }}</td>
+          <td>z = {{ '%+.2f'|format(alert.z_score) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  {% endif %}
+
+{% else %}
+  <div class="card empty-state">
+    <h2>Nenhuma rota monitorada ainda</h2>
+    <p>Cadastre uma rota para começar, ou carregue a carteira de demonstração já com
+       mais de um ano de histórico reconstruído:</p>
+    <p><code>python run.py seed-demo</code></p>
+    <p style="margin-top:22px"><a class="btn" href="{{ url_for('new_watch') }}">Cadastrar primeira rota</a></p>
+  </div>
+{% endif %}
+
+{% endblock %}

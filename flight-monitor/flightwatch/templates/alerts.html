@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Alertas · Monitor de passagens{% endblock %}
+{% block content %}
+
+<h1>Alertas</h1>
+<p class="subtitle">
+  Cada linha é uma cotação que ficou abaixo do padrão histórico da rota o bastante
+  para valer uma olhada. “z” é o desvio padronizado: −2 significa duas vezes a
+  variação típica abaixo do esperado.
+</p>
+
+{% if alerts %}
+<div class="list"><table>
+  <thead>
+    <tr><th>Quando</th><th>Rota</th><th class="num">Preço</th><th class="num">Padrão</th>
+        <th class="num">vs padrão</th><th class="num">z</th><th class="num">Nota</th><th>Veredito</th></tr>
+  </thead>
+  <tbody>
+  {% for alert in alerts %}
+    {% set w = watches.get(alert.watch_id) %}
+    <tr>
+      <td>{{ alert.created_at|dt('%d/%m/%Y %H:%M') }}</td>
+      <td>{% if w %}<a href="{{ url_for('watch_detail', watch_id=w.id) }}">{{ w.display_name }}</a>
+          <div style="color:var(--muted);font-size:12px">{{ w.origin }} → {{ w.destination }} · {{ w.departure_date|dt }}</div>
+          {% else %}<span style="color:var(--muted)">rota removida</span>{% endif %}</td>
+      <td class="num">{{ alert.price|money(w.currency if w else 'BRL') }}</td>
+      <td class="num">{{ alert.expected_price|money(w.currency if w else 'BRL') }}</td>
+      <td class="num">{{ alert.delta_label }}</td>
+      <td class="num">{{ '%+.2f'|format(alert.z_score) }}</td>
+      <td class="num">{{ '%.0f'|format(alert.deal_score) }}</td>
+      <td>{{ severity_tone.get(alert.severity, ('normal','—'))[1] }}
+          <div style="color:var(--muted);font-size:12px">confiança {{ confidence_label.get(alert.confidence, alert.confidence) }}</div></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% else %}
+<div class="card empty-state">
+  <h2>Nenhum alerta ainda</h2>
+  <p>Os alertas aparecem aqui quando alguma rota monitorada cai abaixo do seu padrão.</p>
+</div>
+{% endif %}
+
+{% endblock %}
