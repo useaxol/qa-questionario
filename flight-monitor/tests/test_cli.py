@@ -146,3 +146,68 @@ class TestCLI(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDoctor(unittest.TestCase):
+    """O doctor é o comando que separa 'rodou' de 'está medindo de verdade'."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.db_path = os.path.join(self.tmpdir.name, "doctor.db")
+        self._env = dict(os.environ)
+
+    def tearDown(self):
+        os.environ.clear()
+        os.environ.update(self._env)
+        self.tmpdir.cleanup()
+
+    def run_cli(self, *args, **env):
+        os.environ.update({k: str(v) for k, v in env.items()})
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            code = main(["--db", self.db_path, "doctor", *args])
+        return code, buffer.getvalue()
+
+    def test_reporta_consumo_e_metodologia(self):
+        code, saida = self.run_cli()
+        self.assertEqual(code, 0)
+        self.assertIn("chamadas por rodada", saida)
+        self.assertIn("Metodologia", saida)
+
+    def test_avisa_quando_o_consumo_passa_da_cota(self):
+        code, saida = self.run_cli("--quota", "100")
+        self.assertEqual(code, 0)
+        self.assertIn("acima da cota", saida)
+        self.assertIn("FLIGHTWATCH_INTERVAL_MIN", saida)
+
+    def test_avisa_horizontes_em_numero_par(self):
+        _, saida = self.run_cli(FLIGHTWATCH_PROBE_HORIZONS="45,90")
+        self.assertIn("par", saida)
+        self.assertIn("ímpar", saida)
+
+    def test_probe_all_cobre_os_dez_destinos(self):
+        code, saida = self.run_cli("--probe-all")
+        self.assertEqual(code, 0)
+        for destino in benchmarks.BASKET:
+            self.assertIn(f"GRU→{destino}", saida)
+        self.assertIn("10/10 destinos cotados", saida)
+
+    def test_avisa_que_o_simulador_nao_serve_para_comprar(self):
+        _, saida = self.run_cli()
+        self.assertIn("simula preços", saida)
+        self.assertIn("AMADEUS_CLIENT_ID", saida)
+
+    def test_alerta_o_ambiente_de_teste_da_amadeus(self):
+        code, saida = self.run_cli(
+            FLIGHTWATCH_PROVIDER="amadeus",
+            AMADEUS_CLIENT_ID="x", AMADEUS_CLIENT_SECRET="y",
+            AMADEUS_HOST="https://test.api.amadeus.com",
+        )
+        self.assertIn("ambiente de TESTE", saida)
+        self.assertIn("api.amadeus.com", saida)
+
+    def test_credencial_ausente_e_problema_nao_aviso(self):
+        code, saida = self.run_cli(FLIGHTWATCH_PROVIDER="amadeus",
+                                   AMADEUS_CLIENT_ID="", AMADEUS_CLIENT_SECRET="")
+        self.assertEqual(code, 1)
+        self.assertIn("AMADEUS_CLIENT_ID", saida)

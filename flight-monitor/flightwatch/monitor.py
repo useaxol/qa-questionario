@@ -52,7 +52,8 @@ class ProbeSpec:
         )
 
     def describe(self) -> str:
-        days = " e ".join(str(h) for h in self.horizons)
+        values = [str(h) for h in self.horizons]
+        days = values[0] if len(values) == 1 else ", ".join(values[:-1]) + " e " + values[-1]
         return (
             f"{self.origin} → cesta · ida e volta de {self.nights} noites · "
             f"econômica, 1 passageiro · sondagem a {days} dias da partida"

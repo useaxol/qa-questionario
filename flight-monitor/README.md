@@ -151,22 +151,74 @@ da Amadeus (2.000). A 12 h sobe para 1.800, que ainda cabe com pouca folga.
 
 ## Colocando para funcionar de verdade
 
+### 1. Credencial
+
+Crie a conta em [developers.amadeus.com](https://developers.amadeus.com), vá em
+**My Self-Service Workspace → Create New App** e copie o par **API Key** e **API
+Secret**. A chave nasce apontando para o ambiente de teste.
+
+### 2. Produção, não teste
+
+Este é o passo que costuma ser pulado. O ambiente de teste
+(`test.api.amadeus.com`) serve para validar a credencial: ele devolve um
+conjunto limitado de rotas com preços que **não são de mercado**. Rodar o índice
+contra ele produz números sem significado.
+
+Na página da app, use **Request Production Access** e troque o host. O `doctor`
+avisa se você ainda estiver no ambiente de teste.
+
+### 3. Configure e confira
+
 ```bash
-pip install -r requirements.txt
-
 export FLIGHTWATCH_PROVIDER=amadeus
-export AMADEUS_CLIENT_ID=...
-export AMADEUS_CLIENT_SECRET=...
-export AMADEUS_HOST=https://api.amadeus.com   # o ambiente de teste tem dados limitados
+export AMADEUS_CLIENT_ID=<API Key>
+export AMADEUS_CLIENT_SECRET=<API Secret>
+export AMADEUS_HOST=https://api.amadeus.com
 
-python run.py doctor      # confere credencial, cota e faz uma consulta real
-python run.py measure     # primeira medição
-python run.py serve --with-scheduler
+python run.py doctor --probe-all --quota 2000
 ```
 
-O `doctor` é o passo que separa "rodou" de "está medindo de verdade": ele
-instancia o provedor, faz uma cotação real, calcula o consumo mensal e avisa se
-você ainda está no simulador.
+`--probe-all` cota os 10 destinos (10 chamadas) e mostra a cobertura real do seu
+plano, o preço de cada um e o índice contra o benchmark. É o que responde "isto
+está medindo de verdade?" antes de você depender do resultado. `--quota` é a
+cota mensal do seu plano — o comando compara com o consumo estimado e avisa se
+a cadência não cabe.
+
+Se menos de 5 destinos retornarem cotação, a cesta não forma índice de mercado;
+o app passa a avaliar só contra o benchmark e diz isso na tela.
+
+### 4. Meça
+
+```bash
+python run.py measure                  # primeira medição
+python run.py serve --with-scheduler   # painel + medição automática
+```
+
+### 5. Depois de algumas semanas, recalibre
+
+A tabela foi escrita a partir de faixas de mercado observadas, e a Amadeus
+devolve conteúdo GDS — que nem sempre inclui as tarifas mais agressivas de
+companhias de baixo custo. Se houver diferença sistemática, ela aparece como um
+viés constante no índice de todos os destinos, e é exatamente o que a
+recalibração corrige:
+
+```bash
+python run.py recalibrate --dry-run    # mostra o que mudaria
+python run.py recalibrate              # aplica
+```
+
+O `doctor` lembra disso sozinho quando já há rodadas suficientes.
+
+### Cota de API
+
+| Cadência | Chamadas/rodada | Por mês |
+|---|---|---|
+| 24 h (padrão) | 30 | ~900 |
+| 12 h | 30 | ~1.800 |
+| 6 h | 30 | ~3.600 |
+
+Confirme a cota do seu plano no painel da Amadeus e passe em `--quota`. Viagens
+acompanhadas consomem chamadas à parte (uma por data cotada, por rodada).
 
 ### Comandos
 
@@ -180,7 +232,7 @@ você ainda está no simulador.
 | `recalibrate` | reajusta os preços-base com as cotações coletadas |
 | `add LIS 2027-01-17 --return 2027-01-31` | acompanha uma viagem específica |
 | `alerts [--json]` | alertas registrados |
-| `doctor` | verifica credenciais, cota de API e configuração |
+| `doctor [--probe-all]` | verifica credencial, cobertura do provedor e cota de API |
 | `serve [--with-scheduler]` | painel web |
 | `demo` | simula rodadas para conhecer o app |
 
@@ -271,11 +323,13 @@ volume preserva a série do índice e a recalibração.
 cd tests && python3 -m unittest discover
 ```
 
-130 testes, sem dependências além do Flask. Cobrem a integridade da tabela
+157 testes, sem dependências além do Flask. Cobrem a integridade da tabela
 (sazonalidade com média 1,00, meses baratos coerentes), a álgebra do benchmark,
 os dois cenários que o app existe para separar, os limiares por banda, a
 recalibração de um desvio conhecido, a consistência entre o índice do painel, o
-do alerta e o da série, a deduplicação, o formulário, os gráficos e as rotas web.
+do alerta e o da série, a deduplicação, o formulário, os gráficos, as rotas web e o
+provedor Amadeus contra fixtures no formato real da API (parsing da resposta,
+reuso de token, erro de credencial, limite de requisições e cota estourada).
 
 ---
 

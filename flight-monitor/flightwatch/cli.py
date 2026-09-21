@@ -352,6 +352,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     """Verifica se o app está pronto para medir de verdade."""
     config = _config_from_args(args)
     problems = 0
+    warnings = 0
 
     print(f"Provedor configurado : {config.provider}")
     print(f"Banco                : {config.db_path}")
@@ -360,13 +361,29 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     print(f"Metodologia          : {monitor.ProbeSpec.from_config(config).describe()}")
 
     calls = len(benchmarks.BASKET) * len(config.probe_horizons)
-    per_month = calls * (24 * 60 / max(1, config.collect_interval_minutes)) * 30
+    per_day = calls * (24 * 60 / max(1, config.collect_interval_minutes))
+    per_month = per_day * 30
     print(
         f"Consumo estimado     : {calls} chamadas por rodada · "
-        f"~{per_month:,.0f}/mês no intervalo de {config.collect_interval_minutes} min"
-        .replace(",", ".")
+        f"{per_day:,.0f}/dia · ~{per_month:,.0f}/mês".replace(",", ".")
     )
+    if per_month > args.quota:
+        print(
+            f"  ⚠ acima da cota informada ({args.quota:,.0f}/mês). ".replace(",", ".")
+            + f"Aumente FLIGHTWATCH_INTERVAL_MIN (hoje {config.collect_interval_minutes} min) "
+            "ou reduza FLIGHTWATCH_PROBE_HORIZONS."
+        )
+        warnings += 1
 
+    if len(config.probe_horizons) % 2 == 0:
+        print(
+            f"  ⚠ FLIGHTWATCH_PROBE_HORIZONS tem {len(config.probe_horizons)} valores (par). "
+            "Com contagem par a mediana cai entre duas cotações e o índice do painel "
+            "não corresponde a nenhuma delas. Use uma quantidade ímpar."
+        )
+        warnings += 1
+
+    # ------------------------------------------------------------ provedor
     print("\nProvedor:")
     try:
         provider = get_provider(config)
@@ -375,34 +392,79 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         print(f"  ✗ {exc}")
         return 1
 
+    if config.provider == "amadeus":
+        if "test.api.amadeus.com" in (config.amadeus_host or ""):
+            print(
+                "  ⚠ apontando para o ambiente de TESTE. Ele serve para validar a "
+                "credencial, mas devolve um conjunto limitado de rotas e preços que "
+                "não são de mercado — o índice sai sem sentido.\n"
+                "    Para valer: AMADEUS_HOST=https://api.amadeus.com"
+            )
+            warnings += 1
+        else:
+            print("  ✓ apontando para produção")
+
     from .providers import SearchQuery
 
-    probe = SearchQuery(
-        origin=config.basket_origin,
-        destination=benchmarks.BASKET[0],
-        departure_date=date.today() + timedelta(days=60),
-        return_date=date.today() + timedelta(days=70),
-        currency=benchmarks.BENCHMARK_CURRENCY,
-        max_offers=3,
-        as_of=date.today(),
-    )
-    try:
-        offer = provider.cheapest(probe)
-        if offer is None:
-            print("  ✗ consulta de teste não retornou ofertas")
+    def probe(destination: str):
+        query = SearchQuery(
+            origin=config.basket_origin,
+            destination=destination,
+            departure_date=date.today() + timedelta(days=config.probe_horizons[0]),
+            return_date=date.today() + timedelta(
+                days=config.probe_horizons[0] + config.probe_nights
+            ),
+            currency=benchmarks.BENCHMARK_CURRENCY,
+            max_offers=3,
+            as_of=date.today(),
+        )
+        return provider.cheapest(query)
+
+    alvos = list(benchmarks.BASKET) if args.probe_all else [benchmarks.BASKET[0]]
+    print(f"\nConsulta de teste ({len(alvos)} destino(s), {len(alvos)} chamadas):")
+    cobertos = 0
+    for destination in alvos:
+        try:
+            offer = probe(destination)
+        except ProviderError as exc:
+            print(f"  ✗ {config.basket_origin}→{destination}: {exc}")
             problems += 1
-        else:
-            print(f"  ✓ consulta de teste: {config.basket_origin}→{probe.destination} "
-                  f"= {format_money(offer.price, offer.currency)}")
-    except ProviderError as exc:
-        print(f"  ✗ consulta de teste falhou: {exc}")
-        problems += 1
+            continue
+        if offer is None:
+            print(f"  ✗ {config.basket_origin}→{destination}: nenhuma oferta retornada")
+            problems += 1
+            continue
+
+        cobertos += 1
+        dtd = config.probe_horizons[0]
+        esperado = benchmarks.benchmark(
+            destination, date.today() + timedelta(days=dtd), dtd, origin=config.basket_origin
+        ).price
+        indice = 100.0 * offer.price / esperado
+        print(
+            f"  ✓ {config.basket_origin}→{destination}: "
+            f"{format_money(offer.price, offer.currency)} · "
+            f"benchmark {format_money(esperado)} · índice {indice:.0f}"
+        )
+
+    if args.probe_all and cobertos:
+        print(f"\n  {cobertos}/{len(alvos)} destinos cotados.")
+        if cobertos < indexing.MIN_BASKET_READINGS:
+            print(
+                f"  ⚠ a cesta precisa de {indexing.MIN_BASKET_READINGS} destinos para "
+                "produzir índice de mercado. Abaixo disso o app avalia só contra o "
+                "benchmark e avisa na tela."
+            )
+            warnings += 1
 
     if config.provider == "synthetic":
-        print("\n  ⚠ O provedor 'synthetic' simula preços. Para decidir compra, configure a Amadeus:")
+        print("\n  ⚠ O provedor 'synthetic' simula preços. Para decidir compra:")
         print("    export FLIGHTWATCH_PROVIDER=amadeus")
         print("    export AMADEUS_CLIENT_ID=...  AMADEUS_CLIENT_SECRET=...")
+        print("    export AMADEUS_HOST=https://api.amadeus.com")
+        warnings += 1
 
+    # ---------------------------------------------------------- notificação
     print("\nNotificações:")
     print(f"  console: {'on' if config.notify_console else 'off'}")
     print(f"  arquivo: {config.notify_file or 'off'}")
@@ -411,11 +473,22 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     with db.session(config.db_path) as conn:
         stats = db.quote_stats(conn)
         overrides = db.list_base_overrides(conn)
-    print(f"\nBanco: {stats['rounds']} rodadas, {stats['quotes']} cotações, "
-          f"{len(overrides)} destino(s) recalibrado(s)")
+    print(
+        f"\nBanco: {stats['rounds']} rodadas, {stats['quotes']} cotações, "
+        f"{len(overrides)} destino(s) recalibrado(s)"
+    )
+    if config.provider == "amadeus" and stats["rounds"] >= 8 and not overrides:
+        print(
+            "  → já há rodadas suficientes para recalibrar a tabela com preços reais:\n"
+            "    python run.py recalibrate --dry-run"
+        )
 
-    print("\n" + ("Tudo pronto." if problems == 0 else f"{problems} problema(s) encontrado(s)."))
-    return 1 if problems else 0
+    print()
+    if problems:
+        print(f"{problems} problema(s) e {warnings} aviso(s).")
+        return 1
+    print(f"Tudo pronto." + (f" {warnings} aviso(s) acima." if warnings else ""))
+    return 0
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
@@ -563,6 +636,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_alerts)
 
     p = sub.add_parser("doctor", help="verifica credenciais, cota de API e configuração")
+    p.add_argument("--probe-all", action="store_true",
+                   help="cota os 10 destinos para conferir a cobertura do provedor")
+    p.add_argument("--quota", type=float, default=2000,
+                   help="cota mensal de chamadas do seu plano (padrão: 2000)")
     p.set_defaults(func=cmd_doctor)
 
     p = sub.add_parser("serve", help="sobe o painel web")
