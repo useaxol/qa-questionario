@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Nova rota · Monitor de passagens{% endblock %}
+{% block content %}
+
+<h1>Acompanhar uma viagem</h1>
+<p class="subtitle">
+  Uma data específica que você quer acompanhar. Ela é cotada a cada rodada e recebe o
+  mesmo tratamento da cesta: índice contra o benchmark e comparação com o mercado.
+</p>
+
+<form class="stacked" method="post">
+  <div class="field-row">
+    <div>
+      <label for="origin">Origem (IATA)</label>
+      <input id="origin" name="origin" list="origins" required maxlength="3"
+             placeholder="GRU" value="{{ form.get('origin', probe.origin) }}" autocomplete="off">
+      <div class="hint">A tabela foi escrita para GRU; outras origens usam um ajuste aproximado.</div>
+    </div>
+    <div>
+      <label for="destination">Destino</label>
+      <select id="destination" name="destination" required>
+        <option value="">selecione…</option>
+        {% for code in basket_codes %}
+          {% set d = destinations[code] %}
+          <option value="{{ code }}" {{ 'selected' if form.get('destination') == code }}>
+            {{ d.city }} ({{ code }}) — {{ d.country }}</option>
+        {% endfor %}
+      </select>
+      <div class="hint">Só os 10 destinos da cesta têm benchmark para comparar.</div>
+    </div>
+  </div>
+  <datalist id="origins">
+    {% for ap in [] %}{% endfor %}
+    <option value="GRU">São Paulo</option><option value="GIG">Rio de Janeiro</option>
+    <option value="CNF">Belo Horizonte</option><option value="BSB">Brasília</option>
+    <option value="POA">Porto Alegre</option><option value="CWB">Curitiba</option>
+    <option value="REC">Recife</option><option value="SSA">Salvador</option>
+    <option value="FOR">Fortaleza</option><option value="VCP">Campinas</option>
+  </datalist>
+
+  <div class="field-row">
+    <div>
+      <label for="trip_type">Tipo</label>
+      <select id="trip_type" name="trip_type">
+        <option value="round" {{ 'selected' if form.get('trip_type') != 'oneway' }}>Ida e volta</option>
+        <option value="oneway" {{ 'selected' if form.get('trip_type') == 'oneway' }}>Somente ida</option>
+      </select>
+    </div>
+    <div>
+      <label for="departure_date">Ida</label>
+      <input id="departure_date" name="departure_date" type="date" required value="{{ form.get('departure_date', '') }}">
+    </div>
+    <div>
+      <label for="return_date">Volta</label>
+      <input id="return_date" name="return_date" type="date" value="{{ form.get('return_date', '') }}">
+    </div>
+  </div>
+
+  <div class="field-row">
+    <div>
+      <label for="cabin">Cabine</label>
+      <select id="cabin" name="cabin">
+        {% for c in cabins %}
+          <option value="{{ c }}" {{ 'selected' if form.get('cabin') == c }}>{{ cabin_labels.get(c, c) }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="passengers">Passageiros</label>
+      <input id="passengers" name="passengers" type="number" min="1" max="9" value="{{ form.get('passengers', 1) }}">
+    </div>
+    <div>
+      <label for="flex_days">Flexibilidade de data</label>
+      <select id="flex_days" name="flex_days">
+        {% for d in [0, 1, 2, 3, 5, 7] %}
+          <option value="{{ d }}" {{ 'selected' if form.get('flex_days')|string == d|string }}>
+            {{ 'data exata' if d == 0 else '± ' ~ d ~ ' dia(s)' }}</option>
+        {% endfor %}
+      </select>
+      <div class="hint">Cotar dias vizinhos acelera a formação do histórico.</div>
+    </div>
+  </div>
+
+  <div class="field-row">
+    <div>
+      <label for="max_stops">Máximo de paradas</label>
+      <select id="max_stops" name="max_stops">
+        <option value="any">Qualquer</option>
+        <option value="0" {{ 'selected' if form.get('max_stops') == '0' }}>Somente direto</option>
+        <option value="1" {{ 'selected' if form.get('max_stops') == '1' }}>Até 1 parada</option>
+        <option value="2" {{ 'selected' if form.get('max_stops') == '2' }}>Até 2 paradas</option>
+      </select>
+    </div>
+    <div>
+      <label for="target_price">Preço-alvo (opcional)</label>
+      <input id="target_price" name="target_price" inputmode="decimal" placeholder="4200"
+             value="{{ form.get('target_price', '') }}">
+      <div class="hint">Alerta garantido se o total ficar igual ou abaixo disso.</div>
+    </div>
+    <div>
+      <label for="label">Apelido (opcional)</label>
+      <input id="label" name="label" placeholder="Férias em Lisboa" value="{{ form.get('label', '') }}">
+    </div>
+  </div>
+
+  <div class="checkbox">
+    <input id="collect_now" name="collect_now" type="checkbox" checked>
+    <label for="collect_now" style="margin:0">Cotar agora</label>
+  </div>
+
+  <div><button class="btn" type="submit">Começar a acompanhar</button></div>
+</form>
+
+{% endblock %}

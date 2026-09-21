@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% from "_macros.html" import level_badge, score_meter, trip_line with context %}
+{% block title %}{{ watch.display_name }} · Índice de passagens{% endblock %}
+{% block content %}
+
+<h1>{{ watch.display_name }}</h1>
+<p class="subtitle">
+  {{ watch.origin|airport }} → {{ watch.destination|airport }}<br>
+  {{ trip_line(watch) }}{% if watch.target_price %} · preço-alvo {{ watch.target_price|money(watch.currency) }}{% endif %}
+</p>
+
+<div class="toolbar">
+  <form method="post" action="{{ url_for('collect') }}"><button class="btn" type="submit">Medir agora</button></form>
+  <form method="post" action="{{ url_for('toggle_watch', watch_id=watch.id) }}">
+    <button class="btn ghost" type="submit">{{ 'Pausar' if watch.active else 'Retomar' }}</button>
+  </form>
+  <a class="btn ghost" href="{{ url_for('destination_detail', code=watch.destination) }}">Ver o destino na cesta</a>
+  <span class="spacer"></span>
+  <form method="post" action="{{ url_for('remove_watch', watch_id=watch.id) }}"
+        onsubmit="return confirm('Remover esta viagem e seus alertas?')">
+    <button class="btn danger" type="submit">Remover</button>
+  </form>
+</div>
+
+{% if quote and verdict %}
+<div class="card" style="margin-bottom:18px">
+  <div class="hero">
+    <span class="figure">{{ quote.price|money(quote.currency) }}</span>
+    <span class="context">
+      {{ level_badge(verdict) }}<br>
+      índice <strong>{{ verdict.index|idx }}</strong> contra benchmark de
+      {{ verdict.benchmark|money(verdict.currency) }} — {{ verdict.gap_label }}<br>
+      {% if verdict.distortion is not none %}
+        cesta em {{ verdict.basket_index|idx }} · distorção <strong>{{ verdict.distortion|points }} pontos</strong><br>
+      {% endif %}
+      <span style="color:var(--muted)">cotado em {{ quote.collected_at|dt('%d/%m/%Y %H:%M') }}
+      {%- if quote.airline %} · {{ quote.airline }}{% endif %}
+      {%- if quote.stops is not none %} · {{ 'direto' if quote.stops == 0 else quote.stops ~ ' parada(s)' }}{% endif %}
+      {%- if quote.departure_date != watch.departure_date %} · melhor data: {{ quote.departure_date|dt }}{% endif %}</span>
+    </span>
+  </div>
+
+  <div style="margin-top:18px" class="kv">
+    <div><div class="k">Sinal</div><div class="v">{{ '%.1f'|format(verdict.signal)|replace('.', ',') }} banda(s)</div>{{ score_meter(verdict.score) }}</div>
+    <div><div class="k">Antecedência</div><div class="v">{{ quote.days_to_departure }} dias</div></div>
+    <div><div class="k">Banda normal</div><div class="v">±{{ verdict.band_pct|idx }} pontos</div></div>
+    <div><div class="k">Quem mandou</div><div class="v">{{ verdict.driver_label }}</div></div>
+  </div>
+
+  <ul class="reasons">{% for reason in verdict.reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
+</div>
+{% else %}
+<div class="card empty-state">
+  <h2>Ainda sem cotação</h2>
+  <p>Use “Medir agora” para a primeira leitura desta viagem.</p>
+</div>
+{% endif %}
+
+<h2>Índice desta viagem contra a cesta</h2>
+<div class="chart-card">
+  <div class="legend">
+    <span class="item"><span class="key"></span>Índice da viagem</span>
+    <span class="item"><span class="key compare"></span>Índice de mercado (cesta)</span>
+    <span class="item"><span class="key reference"></span>100 = benchmark</span>
+  </div>
+  {{ chart|safe }}
+  <p class="cap">
+    O índice já desconta mês de viagem e antecedência — então ele não sobe só porque
+    a data está chegando. O que sobe é o preço; o índice mostra se subiu mais que o esperado.
+  </p>
+</div>
+
+{% if alerts %}
+<h2>Alertas desta viagem</h2>
+<div class="list"><table>
+  <thead><tr><th>Quando</th><th class="num">Preço</th><th class="num">Índice</th><th class="num">Cesta</th>
+             <th class="num">Distorção</th><th>Motivo</th></tr></thead>
+  <tbody>
+    {% for a in alerts %}
+    <tr>
+      <td>{{ a.created_at|dt('%d/%m/%Y %H:%M') }}</td>
+      <td class="num">{{ a.price|money(a.currency) }}</td>
+      <td class="num">{{ a.index_value|idx }}</td>
+      <td class="num">{{ a.basket_index|idx }}</td>
+      <td class="num">{{ a.distortion|points }}</td>
+      <td>{{ driver_tone.get(a.driver, a.driver) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+
+{% if history %}
+<h2>Cotações recentes</h2>
+<div class="list"><table>
+  <thead><tr><th>Medido em</th><th>Ida</th><th class="num">Antecedência</th><th>Cia</th>
+             <th class="num">Preço</th><th class="num">Benchmark</th><th class="num">Índice</th></tr></thead>
+  <tbody>
+    {% for q in history %}
+    <tr>
+      <td>{{ q.collected_at|dt('%d/%m %H:%M') }}</td>
+      <td>{{ q.departure_date|dt }}</td>
+      <td class="num">{{ q.days_to_departure }}d</td>
+      <td>{{ q.airline or '—' }}</td>
+      <td class="num">{{ q.price|money(q.currency) }}</td>
+      <td class="num">{{ q.benchmark|money(q.currency) }}</td>
+      <td class="num">{{ q.index_value|idx }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,9 @@
+data/
+*.db
+*.db-wal
+*.db-shm
+*.jsonl
+.env
+__pycache__/
+*.py[cod]
+.pytest_cache/

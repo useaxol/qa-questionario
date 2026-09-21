@@ -1,0 +1,4 @@
+# Núcleo do monitor: apenas o servidor web e o cliente HTTP.
+# O modelo estatístico, o banco e os gráficos usam só a biblioteca padrão.
+flask>=3.0
+requests>=2.31

@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Benchmarks · Índice de passagens{% endblock %}
+{% block content %}
+
+<h1>A tabela de benchmark</h1>
+<p class="subtitle">
+  Esta é a única parte do app com números escritos à mão — e de propósito: é o que
+  permite dizer se um preço é alto ou baixo sem esperar meses de histórico.
+  O benchmark de um destino não é um número, é uma conta:
+  <code>base × sazonalidade do mês × antecedência × cabine × origem</code>.
+  A tabela envelhece, então a recalibração reajusta a base a partir das cotações coletadas.
+</p>
+
+<div class="toolbar">
+  <form method="post" action="{{ url_for('recalibrate') }}">
+    <button class="btn" type="submit">Recalibrar a partir das cotações</button>
+  </form>
+  <span class="spacer"></span>
+  <a class="btn link" href="{{ url_for('api_destinations') }}">API JSON</a>
+</div>
+
+<h2>Preço-base por destino</h2>
+<div class="list"><table>
+  <thead>
+    <tr><th>Destino</th><th>Região</th><th class="num">Base da tabela</th><th class="num">Base em uso</th>
+        <th class="num">Banda</th><th>Meses baratos</th><th>Recalibração</th></tr>
+  </thead>
+  <tbody>
+    {% for row in table %}
+      {% set b = bases[row.iata] %}{% set p = proposals.get(row.iata) %}
+      <tr>
+        <td><a href="{{ url_for('destination_detail', code=row.iata) }}">{{ row.city }}</a>
+            <div class="meta">{{ row.iata }} · {{ '{:,}'.format(row.distance_km).replace(',', '.') }} km</div></td>
+        <td>{{ row.region }}</td>
+        <td class="num">{{ row.base_price|money }}</td>
+        <td class="num">{{ b.base|money }}
+          {% if b.calibrated %}<div class="meta">{{ b.change_pct|points }}%</div>{% endif %}</td>
+        <td class="num">±{{ row.band_pct|idx }}</td>
+        <td>{{ row.cheapest_months|join(', ') }}</td>
+        <td>
+          {% if p and p.is_actionable %}
+            <span class="badge"><span class="mark"></span>{{ p.change_pct|points }}% disponível</span>
+            <div class="meta">{{ p.n_quotes }} cotações, {{ p.n_months }} meses</div>
+          {% elif p %}
+            <span class="meta">{{ p.blocked_reason }}</span>
+          {% else %}<span class="meta">—</span>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table></div>
+
+<h2>Sazonalidade (fator sobre a média anual do destino)</h2>
+<div class="list scroll-x"><table class="compact">
+  <thead>
+    <tr><th>Destino</th>{% for m in month_names %}<th class="num">{{ m }}</th>{% endfor %}</tr>
+  </thead>
+  <tbody>
+    {% for row in table %}
+      <tr>
+        <td>{{ row.iata }}</td>
+        {% for m in month_names %}
+          {% set f = row.seasonal[m] %}
+          <td class="num {{ 'cell-high' if f >= 1.08 else ('cell-low' if f <= 0.93 else '') }}">
+            {{ '%.2f'|format(f)|replace('.', ',') }}</td>
+        {% endfor %}
+      </tr>
+    {% endfor %}
+  </tbody>
+</table></div>
+<p class="cap" style="margin-top:8px">
+  Cada linha tem média exatamente 1,00 — a sazonalidade redistribui o preço-base
+  pelos meses, sem mudar o nível anual do destino.
+</p>
+
+<h2>Curva de antecedência</h2>
+<div class="list"><table>
+  <thead><tr><th class="num">Dias até a partida</th><th class="num">Fator</th><th>Leitura</th></tr></thead>
+  <tbody>
+    {% for days, factor in advance_curve %}
+      <tr>
+        <td class="num">{{ days }}</td>
+        <td class="num">{{ '%.2f'|format(factor)|replace('.', ',') }}</td>
+        <td>{% if factor > 1.02 %}mais caro que a média{% elif factor < 0.99 %}janela mais barata{% else %}em linha{% endif %}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table></div>
+<p class="cap" style="margin-top:8px">
+  Compartilhada por todos os destinos e interpolada linearmente entre os pontos.
+  É o que impede que uma passagem cara por ser de última hora apareça como distorção.
+</p>
+
+{% endblock %}
