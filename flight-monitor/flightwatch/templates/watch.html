@@ -1,173 +1,112 @@
 {% extends "base.html" %}
-{% from "_macros.html" import severity_badge, deal_meter, trip_line with context %}
-{% block title %}{{ watch.display_name }} · Monitor de passagens{% endblock %}
+{% from "_macros.html" import level_badge, score_meter, trip_line with context %}
+{% block title %}{{ watch.display_name }} · Índice de passagens{% endblock %}
 {% block content %}
-
-{% set a = snapshot.assessment %}
-{% set latest = snapshot.latest %}
 
 <h1>{{ watch.display_name }}</h1>
 <p class="subtitle">
   {{ watch.origin|airport }} → {{ watch.destination|airport }}<br>
-  {{ trip_line(watch) }}
-  {% if watch.target_price %} · preço-alvo {{ watch.target_price|money(watch.currency) }}{% endif %}
+  {{ trip_line(watch) }}{% if watch.target_price %} · preço-alvo {{ watch.target_price|money(watch.currency) }}{% endif %}
 </p>
 
 <div class="toolbar">
-  <form method="post" action="{{ url_for('collect') }}">
-    <input type="hidden" name="watch_id" value="{{ watch.id }}">
-    <button class="btn" type="submit">Cotar agora</button>
-  </form>
+  <form method="post" action="{{ url_for('collect') }}"><button class="btn" type="submit">Medir agora</button></form>
   <form method="post" action="{{ url_for('toggle_watch', watch_id=watch.id) }}">
     <button class="btn ghost" type="submit">{{ 'Pausar' if watch.active else 'Retomar' }}</button>
   </form>
+  <a class="btn ghost" href="{{ url_for('destination_detail', code=watch.destination) }}">Ver o destino na cesta</a>
   <span class="spacer"></span>
-  <a class="btn link" href="{{ url_for('api_history', watch_id=watch.id) }}">Histórico em JSON</a>
   <form method="post" action="{{ url_for('remove_watch', watch_id=watch.id) }}"
-        onsubmit="return confirm('Remover esta rota e seus alertas?')">
+        onsubmit="return confirm('Remover esta viagem e seus alertas?')">
     <button class="btn danger" type="submit">Remover</button>
   </form>
 </div>
 
-{% if latest %}
+{% if quote and verdict %}
 <div class="card" style="margin-bottom:18px">
   <div class="hero">
-    <span class="figure">{{ latest.price|money(watch.currency) }}</span>
+    <span class="figure">{{ quote.price|money(quote.currency) }}</span>
     <span class="context">
-      {{ severity_badge(a) }}
-      {% if a and a.method != 'insufficient' %}
-        <br>preço padrão para esta data e antecedência:
-        <strong>{{ (a.expected_price * watch.passengers)|money(watch.currency) }}</strong>
-        — {{ a.delta_label }}
+      {{ level_badge(verdict) }}<br>
+      índice <strong>{{ verdict.index|idx }}</strong> contra benchmark de
+      {{ verdict.benchmark|money(verdict.currency) }} — {{ verdict.gap_label }}<br>
+      {% if verdict.distortion is not none %}
+        cesta em {{ verdict.basket_index|idx }} · distorção <strong>{{ verdict.distortion|points }} pontos</strong><br>
       {% endif %}
-      <br><span style="color:var(--muted)">cotado em {{ latest.observed_at|dt('%d/%m/%Y %H:%M') }}
-      {%- if latest.airline %} · {{ latest.airline }}{% endif %}
-      {%- if latest.stops is not none %} · {{ 'direto' if latest.stops == 0 else latest.stops ~ ' parada(s)' }}{% endif %}
-      {%- if latest.departure_date != watch.departure_date %} · melhor data: {{ latest.departure_date|dt }}{% endif %}</span>
+      <span style="color:var(--muted)">cotado em {{ quote.collected_at|dt('%d/%m/%Y %H:%M') }}
+      {%- if quote.airline %} · {{ quote.airline }}{% endif %}
+      {%- if quote.stops is not none %} · {{ 'direto' if quote.stops == 0 else quote.stops ~ ' parada(s)' }}{% endif %}
+      {%- if quote.departure_date != watch.departure_date %} · melhor data: {{ quote.departure_date|dt }}{% endif %}</span>
     </span>
   </div>
 
-  {% if a and a.method != 'insufficient' %}
-    <div style="margin-top:18px" class="kv">
-      <div><div class="k">Nota de oportunidade</div><div class="v">{{ '%.0f'|format(a.deal_score) }}/100</div>{{ deal_meter(a.deal_score) }}</div>
-      <div><div class="k">Desvio padronizado (z)</div><div class="v">{{ '%+.2f'|format(a.z_score) }}</div></div>
-      <div><div class="k">Mais barata que</div><div class="v">{{ '%.0f'|format(a.percentile) }}% do histórico</div></div>
-      <div><div class="k">Confiança</div><div class="v">{{ confidence_label.get(a.confidence, a.confidence) }}</div></div>
-      <div><div class="k">Base histórica</div><div class="v">{{ a.n_samples }} cotações</div></div>
-      <div><div class="k">Mesmo período do ano</div><div class="v">{{ a.n_season }} cotações</div></div>
-    </div>
-  {% endif %}
+  <div style="margin-top:18px" class="kv">
+    <div><div class="k">Sinal</div><div class="v">{{ '%.1f'|format(verdict.signal)|replace('.', ',') }} banda(s)</div>{{ score_meter(verdict.score) }}</div>
+    <div><div class="k">Antecedência</div><div class="v">{{ quote.days_to_departure }} dias</div></div>
+    <div><div class="k">Banda normal</div><div class="v">±{{ verdict.band_pct|idx }} pontos</div></div>
+    <div><div class="k">Quem mandou</div><div class="v">{{ verdict.driver_label }}</div></div>
+  </div>
 
-  {% if a and a.reasons %}
-    <ul class="reasons">{% for reason in a.reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
-  {% endif %}
+  <ul class="reasons">{% for reason in verdict.reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
 </div>
 {% else %}
 <div class="card empty-state">
   <h2>Ainda sem cotação</h2>
-  <p>Use “Cotar agora” para a primeira coleta desta rota.</p>
+  <p>Use “Medir agora” para a primeira leitura desta viagem.</p>
 </div>
 {% endif %}
 
-<h2>Preço observado contra o preço esperado</h2>
+<h2>Índice desta viagem contra a cesta</h2>
 <div class="chart-card">
   <div class="legend">
-    <span class="item"><span class="key"></span>Preço cotado (por passageiro)</span>
-    <span class="item"><span class="key expected"></span>Preço esperado pelo modelo</span>
-    <span class="item"><span class="key band"></span>Faixa de variação normal (±{{ '%.0f'|format(model.residual_scale * 100) }}%)</span>
-    <span class="item"><span class="key" style="background:var(--good);height:9px;width:9px;border-radius:50%"></span>Alerta disparado</span>
+    <span class="item"><span class="key"></span>Índice da viagem</span>
+    <span class="item"><span class="key compare"></span>Índice de mercado (cesta)</span>
+    <span class="item"><span class="key reference"></span>100 = benchmark</span>
   </div>
-  {{ history_chart|safe }}
+  {{ chart|safe }}
   <p class="cap">
-    {{ n_points }} dia(s) de coleta. A linha esperada sobe conforme a data se aproxima — é a
-    curva de antecedência da rota. O alerta olha a distância até essa linha, não o preço bruto.
+    O índice já desconta mês de viagem e antecedência — então ele não sobe só porque
+    a data está chegando. O que sobe é o preço; o índice mostra se subiu mais que o esperado.
   </p>
 </div>
 
-{% if insights %}
-<h2>O que o histórico da rota diz</h2>
-<div class="grid two">
-  <div class="card">
-    <h3>Quando viajar</h3>
-    <p style="margin:0;color:var(--ink-2)">
-      Mês mais barato: <strong>{{ insights.cheapest_month[0] }}</strong>
-      ({{ insights.cheapest_month[1]|pct(0) }} sobre a média da rota).<br>
-      Mês mais caro: <strong>{{ insights.priciest_month[0] }}</strong>
-      ({{ insights.priciest_month[1]|pct(0) }}).
-    </p>
-  </div>
-  <div class="card">
-    <h3>Quando comprar</h3>
-    <p style="margin:0;color:var(--ink-2)">
-      {% if insights.best_window %}
-        Melhor antecedência: <strong>{{ insights.best_window[0] }} dias</strong>
-        ({{ insights.best_window[1]|pct(0) }}).<br>
-      {% endif %}
-      {% if insights.worst_window %}
-        Pior antecedência: <strong>{{ insights.worst_window[0] }} dias</strong>
-        ({{ insights.worst_window[1]|pct(0) }}).<br>
-      {% endif %}
-      Volatilidade típica da rota: ±{{ '%.0f'|format(insights.volatility_pct) }}%.
-    </p>
-  </div>
-</div>
-
-<div class="chart-card" style="margin-top:14px">
-  <h3>Sazonalidade por mês de viagem</h3>
-  <div class="legend">
-    <span class="item"><span class="key high"></span>Acima da média anual da rota</span>
-    <span class="item"><span class="key low"></span>Abaixo da média anual da rota</span>
-  </div>
-  {{ seasonal_chart|safe }}
-  <p class="cap">Efeito isolado do período do ano, já descontada a antecedência da compra.</p>
-</div>
-
-<div class="chart-card" style="margin-top:14px">
-  <h3>Curva de antecedência</h3>
-  <div class="legend">
-    <span class="item"><span class="key high"></span>Mais caro que a média</span>
-    <span class="item"><span class="key low"></span>Mais barato que a média</span>
-  </div>
-  {{ advance_chart|safe }}
-  <p class="cap">Efeito isolado de quantos dias faltam para a partida, já descontada a sazonalidade.</p>
-</div>
-{% endif %}
-
 {% if alerts %}
-<h2>Alertas desta rota</h2>
+<h2>Alertas desta viagem</h2>
 <div class="list"><table>
-  <thead><tr><th>Quando</th><th class="num">Preço</th><th class="num">Padrão</th><th class="num">vs padrão</th><th class="num">z</th><th>Veredito</th></tr></thead>
+  <thead><tr><th>Quando</th><th class="num">Preço</th><th class="num">Índice</th><th class="num">Cesta</th>
+             <th class="num">Distorção</th><th>Motivo</th></tr></thead>
   <tbody>
-  {% for alert in alerts %}
+    {% for a in alerts %}
     <tr>
-      <td>{{ alert.created_at|dt('%d/%m/%Y %H:%M') }}</td>
-      <td class="num">{{ alert.price|money(watch.currency) }}</td>
-      <td class="num">{{ alert.expected_price|money(watch.currency) }}</td>
-      <td class="num">{{ alert.delta_label }}</td>
-      <td class="num">{{ '%+.2f'|format(alert.z_score) }}</td>
-      <td>{{ severity_tone.get(alert.severity, ('normal','—'))[1] }}</td>
+      <td>{{ a.created_at|dt('%d/%m/%Y %H:%M') }}</td>
+      <td class="num">{{ a.price|money(a.currency) }}</td>
+      <td class="num">{{ a.index_value|idx }}</td>
+      <td class="num">{{ a.basket_index|idx }}</td>
+      <td class="num">{{ a.distortion|points }}</td>
+      <td>{{ driver_tone.get(a.driver, a.driver) }}</td>
     </tr>
-  {% endfor %}
+    {% endfor %}
   </tbody>
 </table></div>
 {% endif %}
 
-{% if observations %}
+{% if history %}
 <h2>Cotações recentes</h2>
-<p class="subtitle">Últimas {{ observations|length }} coletas desta rota.</p>
 <div class="list"><table>
-  <thead><tr><th>Coletado em</th><th>Ida</th><th class="num">Dias p/ partida</th><th>Cia</th><th class="num">Paradas</th><th class="num">Preço</th></tr></thead>
+  <thead><tr><th>Medido em</th><th>Ida</th><th class="num">Antecedência</th><th>Cia</th>
+             <th class="num">Preço</th><th class="num">Benchmark</th><th class="num">Índice</th></tr></thead>
   <tbody>
-  {% for obs in observations %}
+    {% for q in history %}
     <tr>
-      <td>{{ obs.observed_at|dt('%d/%m/%Y %H:%M') }}</td>
-      <td>{{ obs.departure_date|dt }}</td>
-      <td class="num">{{ obs.days_to_departure }}</td>
-      <td>{{ obs.airline or '—' }}</td>
-      <td class="num">{{ obs.stops if obs.stops is not none else '—' }}</td>
-      <td class="num">{{ obs.price|money(obs.currency) }}</td>
+      <td>{{ q.collected_at|dt('%d/%m %H:%M') }}</td>
+      <td>{{ q.departure_date|dt }}</td>
+      <td class="num">{{ q.days_to_departure }}d</td>
+      <td>{{ q.airline or '—' }}</td>
+      <td class="num">{{ q.price|money(q.currency) }}</td>
+      <td class="num">{{ q.benchmark|money(q.currency) }}</td>
+      <td class="num">{{ q.index_value|idx }}</td>
     </tr>
-  {% endfor %}
+    {% endfor %}
   </tbody>
 </table></div>
 {% endif %}

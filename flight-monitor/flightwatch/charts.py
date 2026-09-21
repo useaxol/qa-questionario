@@ -90,46 +90,46 @@ def empty_chart(message: str, width: int = 880, height: int = 260) -> str:
     )
 
 
-# ------------------------------------------------- histórico de preço (linha)
+# ------------------------------------------------------ índice no tempo
 
 
-def price_history_chart(
-    points: Sequence[Point],
-    expected: Optional[Sequence[Point]] = None,
-    alerts: Optional[Sequence[Tuple[datetime, float, int]]] = None,
-    currency: str = "BRL",
+def index_history_chart(
+    points: Sequence[Tuple[datetime, float]],
+    comparison: Optional[Sequence[Tuple[datetime, float]]] = None,
+    *,
+    band_pct: float = 0.0,
     width: int = 880,
     height: int = 300,
-    band_pct: float = 0.0,
+    label: str = "índice",
+    comparison_label: str = "cesta",
+    alerts: Optional[Sequence[Tuple[datetime, float, int]]] = None,
 ) -> str:
-    """Preço observado ao longo do tempo, contra a faixa de preço esperado.
+    """Índice ao longo do tempo, contra a linha de referência 100.
 
-    `band_pct` desenha uma faixa de tolerância em torno da linha esperada
-    (o desvio robusto do modelo), que é o que separa "variação normal" de
-    "oportunidade".
+    Com `comparison` desenha uma segunda série (tipicamente a cesta), que é o
+    que revela se um destino está descolando ou apenas acompanhando o mercado.
     """
-    points = [(t, float(p)) for t, p in points if p and p > 0]
+    points = [(t, float(v)) for t, v in points if v and math.isfinite(v)]
     if len(points) < 2:
-        return empty_chart("Ainda sem histórico suficiente para o gráfico.", width, height)
+        return empty_chart("Ainda sem rodadas suficientes para a série do índice.", width, height)
 
-    expected = [(t, float(p)) for t, p in (expected or []) if p and p > 0]
+    comparison = [(t, float(v)) for t, v in (comparison or []) if v and math.isfinite(v)]
     alerts = list(alerts or [])
 
-    pad_left, pad_right, pad_top, pad_bottom = 66, 74, 18, 34
+    pad_left, pad_right, pad_top, pad_bottom = 56, 78, 18, 34
     plot_w = width - pad_left - pad_right
     plot_h = height - pad_top - pad_bottom
 
-    xs = [t.timestamp() for t, _ in points] + [t.timestamp() for t, _ in expected]
+    xs = [t.timestamp() for t, _ in points] + [t.timestamp() for t, _ in comparison]
     x_lo, x_hi = min(xs), max(xs)
 
-    values = [p for _, p in points] + [p for _, p in expected]
-    if band_pct > 0 and expected:
-        values += [p * (1 + band_pct) for _, p in expected]
-        values += [p * (1 - band_pct) for _, p in expected]
+    values = [v for _, v in points] + [v for _, v in comparison] + [100.0]
+    if band_pct > 0:
+        values += [100.0 - band_pct, 100.0 + band_pct]
     y_lo, y_hi = min(values), max(values)
-    span = max(1.0, y_hi - y_lo)
-    y_lo -= span * 0.10
-    y_hi += span * 0.10
+    span = max(6.0, y_hi - y_lo)
+    y_lo -= span * 0.12
+    y_hi += span * 0.12
 
     def px(moment: datetime) -> float:
         return _scale(moment.timestamp(), x_lo, x_hi, pad_left, pad_left + plot_w)
@@ -139,10 +139,9 @@ def price_history_chart(
 
     parts: List[str] = [
         f'<svg class="fw-chart" viewBox="0 0 {width} {height}" width="100%" height="{height}" '
-        f'role="img" aria-label="Histórico de preço contra o preço esperado">'
+        f'role="img" aria-label="Índice ao longo do tempo contra a referência 100">'
     ]
 
-    # Grade e eixo Y
     for tick in nice_ticks(y_lo, y_hi, 5):
         y = py(tick)
         if not (pad_top - 1 <= y <= pad_top + plot_h + 1):
@@ -152,67 +151,71 @@ def price_history_chart(
         )
         parts.append(
             f'<text class="fw-tick" x="{pad_left - 10}" y="{y + 4:.1f}" text-anchor="end">'
-            f"{_fmt_number(tick)}</text>"
+            f"{tick:.0f}</text>"
         )
 
-    # Faixa de preço esperado
-    if expected and band_pct > 0:
-        top = " ".join(f"{px(t):.1f},{py(p * (1 + band_pct)):.1f}" for t, p in expected)
-        bottom = " ".join(
-            f"{px(t):.1f},{py(p * (1 - band_pct)):.1f}" for t, p in reversed(expected)
+    # Faixa de variação normal em torno de 100.
+    if band_pct > 0:
+        top, bottom = py(100.0 + band_pct), py(100.0 - band_pct)
+        parts.append(
+            f'<rect class="fw-band" x="{pad_left}" y="{top:.1f}" '
+            f'width="{plot_w}" height="{max(1.0, bottom - top):.1f}"/>'
         )
-        parts.append(f'<polygon class="fw-band" points="{top} {bottom}"/>')
 
-    # Linha do preço esperado
-    if expected:
+    # A linha do 100: a referência, não um dado.
+    y100 = py(100.0)
+    parts.append(
+        f'<line class="fw-reference" x1="{pad_left}" y1="{y100:.1f}" '
+        f'x2="{pad_left + plot_w}" y2="{y100:.1f}"/>'
+    )
+    parts.append(
+        f'<text class="fw-end-label fw-muted-label" x="{pad_left + plot_w + 8:.1f}" '
+        f'y="{y100 + 4:.1f}">100</text>'
+    )
+
+    if comparison:
         path = " ".join(
-            ("M" if i == 0 else "L") + f" {px(t):.1f} {py(p):.1f}"
-            for i, (t, p) in enumerate(expected)
+            ("M" if i == 0 else "L") + f" {px(t):.1f} {py(v):.1f}"
+            for i, (t, v) in enumerate(comparison)
         )
-        parts.append(f'<path class="fw-line-expected" d="{path}"/>')
+        parts.append(f'<path class="fw-line-compare" d="{path}"/>')
 
-    # Linha do preço observado
     path = " ".join(
-        ("M" if i == 0 else "L") + f" {px(t):.1f} {py(p):.1f}" for i, (t, p) in enumerate(points)
+        ("M" if i == 0 else "L") + f" {px(t):.1f} {py(v):.1f}" for i, (t, v) in enumerate(points)
     )
-    parts.append(f'<path class="fw-line-price" d="{path}"/>')
+    parts.append(f'<path class="fw-line-index" d="{path}"/>')
 
-    # Marcas de alerta (cor + anel de superfície; o rótulo vem no tooltip)
     severity_class = {1: "good", 2: "good", 3: "serious", 4: "critical"}
-    for moment, price, severity in alerts:
-        cls = severity_class.get(severity, "good")
+    for moment, value, level in alerts:
         parts.append(
-            f'<circle class="fw-alert-dot fw-alert-{cls}" cx="{px(moment):.1f}" '
-            f'cy="{py(price):.1f}" r="5"><title>Alerta em '
-            f"{_esc(moment.strftime('%d/%m/%Y %H:%M'))} · {_esc(currency)} "
-            f"{_fmt_number(price)}</title></circle>"
+            f'<circle class="fw-alert-dot fw-alert-{severity_class.get(level, "good")}" '
+            f'cx="{px(moment):.1f}" cy="{py(value):.1f}" r="5"><title>Alerta em '
+            f"{_esc(moment.strftime('%d/%m/%Y %H:%M'))} · índice {value:.0f}</title></circle>"
         )
 
-    # Camada de hover: alvos generosos com tooltip nativo
-    for moment, price in points:
+    for moment, value in points:
         parts.append(
-            f'<circle class="fw-hit" cx="{px(moment):.1f}" cy="{py(price):.1f}" r="9">'
-            f"<title>{_esc(moment.strftime('%d/%m/%Y %H:%M'))} · {_esc(currency)} "
-            f"{_fmt_number(price)}</title></circle>"
+            f'<circle class="fw-hit" cx="{px(moment):.1f}" cy="{py(value):.1f}" r="9">'
+            f"<title>{_esc(moment.strftime('%d/%m/%Y %H:%M'))} · {_esc(label)} "
+            f"{value:.0f}</title></circle>"
         )
 
-    # Rótulo direto no último ponto
-    last_t, last_p = points[-1]
+    last_t, last_v = points[-1]
+    parts.append(f'<circle class="fw-end-dot" cx="{px(last_t):.1f}" cy="{py(last_v):.1f}" r="4.5"/>')
     parts.append(
-        f'<circle class="fw-end-dot" cx="{px(last_t):.1f}" cy="{py(last_p):.1f}" r="4.5"/>'
+        f'<text class="fw-end-label" x="{px(last_t) + 10:.1f}" y="{py(last_v) + 4:.1f}">'
+        f"{last_v:.0f}</text>"
     )
-    parts.append(
-        f'<text class="fw-end-label" x="{px(last_t) + 10:.1f}" y="{py(last_p) + 4:.1f}">'
-        f"{_fmt_number(last_p)}</text>"
-    )
-    if expected:
-        exp_t, exp_p = expected[-1]
+    if comparison:
+        ct, cv = comparison[-1]
         parts.append(
-            f'<text class="fw-end-label fw-muted-label" x="{px(exp_t) + 10:.1f}" '
-            f'y="{py(exp_p) + 4:.1f}">esperado</text>'
+            f'<circle class="fw-end-dot-compare" cx="{px(ct):.1f}" cy="{py(cv):.1f}" r="4"/>'
+        )
+        parts.append(
+            f'<text class="fw-end-label fw-muted-label" x="{px(ct) + 10:.1f}" '
+            f'y="{py(cv) + 4:.1f}">{_esc(comparison_label)}</text>'
         )
 
-    # Eixo X: primeira, do meio e última data
     baseline_y = pad_top + plot_h
     parts.append(
         f'<line class="fw-axis" x1="{pad_left}" y1="{baseline_y:.1f}" '
@@ -222,11 +225,119 @@ def price_history_chart(
         moment = points[index][0]
         parts.append(
             f'<text class="fw-tick" x="{px(moment):.1f}" y="{baseline_y + 20:.0f}" '
-            f'text-anchor="{anchor}">{_esc(moment.strftime("%d/%m/%y"))}</text>'
+            f'text-anchor="{anchor}">{_esc(moment.strftime("%d/%m %H:%M"))}</text>'
         )
 
     parts.append("</svg>")
     return "".join(parts)
+
+
+# ------------------------------------------------- a cesta agora (barras)
+
+
+def basket_bars(
+    items: Sequence[Tuple[str, float, str]],
+    basket_index: Optional[float] = None,
+    width: int = 880,
+    row_height: int = 34,
+) -> str:
+    """Barras horizontais: o índice de cada destino em torno da referência 100.
+
+    É o gráfico principal do app. Cada barra cresce a partir do 100, então o
+    olho lê imediatamente quem está abaixo e quanto.
+    """
+    items = list(items)
+    if not items:
+        return empty_chart("Nenhuma cotação na última rodada.", width, 200)
+
+    pad_left, pad_right, pad_top, pad_bottom = 118, 58, 26, 30
+    plot_w = width - pad_left - pad_right
+    height = pad_top + pad_bottom + row_height * len(items)
+
+    magnitude = max(
+        14.0,
+        max(abs(value - 100.0) for _, value, _ in items) * 1.18,
+        abs((basket_index or 100.0) - 100.0) * 1.3,
+    )
+    x_zero = pad_left + plot_w / 2.0
+
+    def px(value: float) -> float:
+        return x_zero + ((value - 100.0) / magnitude) * (plot_w / 2.0)
+
+    bar_h = min(24.0, row_height * 0.58)
+
+    parts: List[str] = [
+        f'<svg class="fw-chart" viewBox="0 0 {width} {height}" width="100%" height="{height}" '
+        f'role="img" aria-label="Índice de cada destino da cesta em torno de 100">'
+    ]
+
+    for tick in (100 - magnitude, 100 - magnitude / 2, 100, 100 + magnitude / 2, 100 + magnitude):
+        x = px(tick)
+        css = "fw-reference" if abs(tick - 100) < 1e-9 else "fw-grid"
+        parts.append(
+            f'<line class="{css}" x1="{x:.1f}" y1="{pad_top - 8}" '
+            f'x2="{x:.1f}" y2="{pad_top + row_height * len(items):.1f}"/>'
+        )
+        parts.append(
+            f'<text class="fw-tick" x="{x:.1f}" y="{pad_top - 14}" text-anchor="middle">'
+            f"{tick:.0f}</text>"
+        )
+
+    # A cesta entra como uma marca vertical: cada destino é lido contra ela.
+    if basket_index is not None:
+        x = px(basket_index)
+        parts.append(
+            f'<line class="fw-basket-mark" x1="{x:.1f}" y1="{pad_top - 6}" '
+            f'x2="{x:.1f}" y2="{pad_top + row_height * len(items) + 4:.1f}"/>'
+        )
+        parts.append(
+            f'<text class="fw-tick fw-basket-label" x="{x:.1f}" '
+            f'y="{pad_top + row_height * len(items) + 20:.0f}" text-anchor="middle">'
+            f"cesta {basket_index:.0f}</text>"
+        )
+
+    for row, (label, value, note) in enumerate(items):
+        y_center = pad_top + row * row_height + row_height / 2.0
+        y = y_center - bar_h / 2.0
+        x_value = px(value)
+        css = "fw-bar-low" if value <= 100 else "fw-bar-high"
+        left, right = (x_value, x_zero) if value <= 100 else (x_zero, x_value)
+        parts.append(
+            f'<path class="{css}" d="{_rounded_bar_h(left, right, y, bar_h, value <= 100)}">'
+            f"<title>{_esc(label)}: índice {value:.0f} — {_esc(note)}</title></path>"
+        )
+        parts.append(
+            f'<text class="fw-row-label" x="{pad_left - 14}" y="{y_center + 4:.1f}" '
+            f'text-anchor="end">{_esc(label)}</text>'
+        )
+        anchor_x = x_value + (-9 if value <= 100 else 9)
+        anchor = "end" if value <= 100 else "start"
+        parts.append(
+            f'<text class="fw-row-value" x="{anchor_x:.1f}" y="{y_center + 4:.1f}" '
+            f'text-anchor="{anchor}">{value:.0f}</text>'
+        )
+
+    parts.append("</svg>")
+    return "".join(parts)
+
+
+def _rounded_bar_h(left: float, right: float, y: float, height: float, round_left: bool) -> str:
+    """Barra horizontal com a ponta de dados arredondada e a base quadrada."""
+    span = max(0.0, right - left)
+    r = min(4.0, height / 2.0, span)
+    if span < 0.8:
+        return f"M {left:.1f} {y:.1f} h 0.8 v {height:.1f} h -0.8 Z"
+    if round_left:
+        return (
+            f"M {right:.1f} {y:.1f} H {left + r:.1f} A {r:.1f} {r:.1f} 0 0 0 {left:.1f} {y + r:.1f} "
+            f"V {y + height - r:.1f} A {r:.1f} {r:.1f} 0 0 0 {left + r:.1f} {y + height:.1f} "
+            f"H {right:.1f} Z"
+        )
+    return (
+        f"M {left:.1f} {y:.1f} H {right - r:.1f} A {r:.1f} {r:.1f} 0 0 1 {right:.1f} {y + r:.1f} "
+        f"V {y + height - r:.1f} A {r:.1f} {r:.1f} 0 0 1 {right - r:.1f} {y + height:.1f} "
+        f"H {left:.1f} Z"
+    )
 
 
 # ---------------------------------------------------- sazonalidade (divergente)

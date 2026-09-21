@@ -1,39 +1,42 @@
-"""Testes da coleta, do alerta e da deduplicação."""
+"""Testes da rodada de coleta, da sondagem e dos alertas."""
 from __future__ import annotations
 
 import unittest
 from datetime import date, datetime, timedelta
 
-from helpers import make_watch, memory_db, seeded_route, test_config
+from helpers import make_watch, memory_db, quiet_provider, test_config
 
-from flightwatch import db, monitor
-from flightwatch.models import Observation
+from flightwatch import benchmarks, calibration, db, indexing, monitor
+from flightwatch.models import KIND_BASKET, KIND_WATCH
 from flightwatch.notifier import Notifier
 from flightwatch.providers import Offer, Provider, ProviderError, SearchQuery
-from flightwatch.providers.synthetic import SyntheticProvider
 
 
 class FakeProvider(Provider):
-    """Provedor controlado: devolve o preço que o teste mandar."""
+    """Devolve o preço que o teste mandar, por destino."""
 
     name = "fake"
     supports_backfill = False
 
-    def __init__(self, price: float):
-        self.price = price
+    def __init__(self, index_by_destination=None, default_index=100.0):
+        self.index_by_destination = index_by_destination or {}
+        self.default_index = default_index
         self.queries = []
 
     def search(self, query: SearchQuery):
         self.queries.append(query)
+        dtd = (query.departure_date - (query.as_of or date.today())).days
+        bench = benchmarks.benchmark(
+            query.destination, query.departure_date, dtd,
+            origin=query.origin, cabin=query.cabin, passengers=query.passengers,
+        ).price
+        target = self.index_by_destination.get(query.destination, self.default_index)
         return [
             Offer(
-                price=self.price,
+                price=bench * target / 100.0,
                 currency=query.currency,
-                airline="XX",
-                stops=1,
-                duration_minutes=600,
-                departure_date=query.departure_date,
-                return_date=query.return_date,
+                airline="XX", stops=1, duration_minutes=600,
+                departure_date=query.departure_date, return_date=query.return_date,
             )
         ]
 
@@ -49,173 +52,226 @@ class RecordingNotifier(Notifier):
     def __init__(self):
         self.sent = []
 
-    def send(self, watch, assessment, observation, alert=None):
-        self.sent.append((watch, assessment, observation, alert))
+    def send(self, verdict, quote, watch, alert=None):
+        self.sent.append((verdict, quote, watch, alert))
 
 
-class TestDatasCandidatas(unittest.TestCase):
-    def test_sem_flexibilidade_cota_apenas_a_data(self):
-        watch = make_watch(days_ahead=30)
-        datas = monitor.candidate_dates(watch, date.today())
-        self.assertEqual(datas, [watch.departure_date])
+class TestMetodologia(unittest.TestCase):
+    def test_contagem_de_sondagens_e_impar(self):
+        """Com contagem par a mediana cairia entre duas cotações."""
+        spec = monitor.ProbeSpec.from_config(test_config())
+        self.assertEqual(len(spec.horizons) % 2, 1)
 
-    def test_flexibilidade_cobre_os_dias_vizinhos(self):
-        watch = make_watch(days_ahead=30, flex_days=2)
-        datas = monitor.candidate_dates(watch, date.today())
-        self.assertEqual(len(datas), 5)
-        self.assertIn(watch.departure_date - timedelta(days=2), datas)
-        self.assertIn(watch.departure_date + timedelta(days=2), datas)
+    def test_descricao_cita_a_metodologia(self):
+        texto = monitor.ProbeSpec.from_config(test_config()).describe()
+        self.assertIn("GRU", texto)
+        self.assertIn("econômica", texto)
 
-    def test_datas_passadas_sao_descartadas(self):
-        watch = make_watch(days_ahead=1, flex_days=3)
-        datas = monitor.candidate_dates(watch, date.today())
-        self.assertTrue(all(d >= date.today() for d in datas))
-
-    def test_volta_acompanha_o_deslocamento_da_ida(self):
-        watch = make_watch(days_ahead=30, nights=10, flex_days=1)
-        nova_ida = watch.departure_date + timedelta(days=1)
-        self.assertEqual(
-            monitor._return_for(watch, nova_ida), nova_ida + timedelta(days=10)
+    def test_representante_e_a_sondagem_mediana(self):
+        provider = FakeProvider()
+        probe = monitor.probe_destination(
+            provider, "LIS", monitor.ProbeSpec(), date.today(), {}, datetime.now()
         )
+        self.assertEqual(len(probe.readings), 3)
+        indices = sorted(r.index for r in probe.readings)
+        self.assertAlmostEqual(probe.representative.index, indices[1], places=6)
+        self.assertAlmostEqual(probe.index, indices[1], places=6)
+
+    def test_sondagem_sem_oferta_reporta_erro(self):
+        probe = monitor.probe_destination(
+            FailingProvider(), "LIS", monitor.ProbeSpec(), date.today(), {}, datetime.now()
+        )
+        self.assertFalse(probe.ok)
+        self.assertIn("fora do ar", probe.error)
 
 
-class TestColeta(unittest.TestCase):
+class TestRodada(unittest.TestCase):
     def setUp(self):
         self.conn = memory_db()
         self.config = test_config()
-        seeded_route(self.conn)
-        self.watch = make_watch(days_ahead=120)
-        self.watch.id = db.insert_watch(self.conn, self.watch)
-        model, amostras = monitor.route_model_for(self.conn, self.watch)
-        self.model = model
-        self.esperado = model.predict(self.watch.departure_date, 120)
 
-    def coletar(self, preco, notifier=None):
-        provider = FakeProvider(preco)
-        return monitor.collect_watch(
-            self.conn, self.config, provider, self.watch, notifier=notifier
-        )
+    def test_rodada_mede_os_dez_destinos(self):
+        result = monitor.run_round(self.conn, self.config, FakeProvider(), include_watches=False)
+        self.assertEqual(result.basket.size, 10)
+        self.assertAlmostEqual(result.basket.index, 100.0, places=3)
+        self.assertEqual(result.errors, [])
 
-    def test_coleta_grava_observacao(self):
-        resultado = self.coletar(self.esperado)
-        self.assertTrue(resultado.ok)
-        self.assertIsNotNone(resultado.best)
-        self.assertEqual(len(db.watch_history(self.conn, self.watch.id)), 1)
+    def test_rodada_grava_cotacoes_e_snapshot(self):
+        result = monitor.run_round(self.conn, self.config, FakeProvider(), include_watches=False)
+        stats = db.quote_stats(self.conn)
+        self.assertEqual(stats["quotes"], 30)  # 10 destinos × 3 sondagens
+        self.assertEqual(stats["rounds"], 1)
+        snapshot = db.latest_snapshot(self.conn)
+        self.assertEqual(snapshot.round_id, result.round_id)
+        self.assertEqual(snapshot.size, 10)
 
-    def test_coleta_atualiza_ultima_verificacao(self):
-        self.coletar(self.esperado)
-        atualizado = db.get_watch(self.conn, self.watch.id)
-        self.assertIsNotNone(atualizado.last_checked_at)
+    def test_mercado_em_linha_nao_gera_alerta(self):
+        result = monitor.run_round(self.conn, self.config, FakeProvider(), include_watches=False)
+        self.assertEqual(result.alerts, [])
 
-    def test_preco_normal_nao_gera_alerta(self):
-        resultado = self.coletar(self.esperado)
-        self.assertIsNone(resultado.alert)
-        self.assertEqual(db.list_alerts(self.conn), [])
-
-    def test_queda_forte_gera_alerta_e_notifica(self):
+    def test_destino_distorcido_gera_alerta(self):
+        provider = FakeProvider({"LIS": 76.0}, default_index=101.0)
         notifier = RecordingNotifier()
-        resultado = self.coletar(self.esperado * 0.68, notifier=notifier)
-        self.assertIsNotNone(resultado.alert)
-        self.assertTrue(resultado.alert.notified)
-        self.assertEqual(len(notifier.sent), 1)
-        self.assertEqual(len(db.list_alerts(self.conn)), 1)
-
-    def test_falha_do_provedor_e_reportada_sem_quebrar(self):
-        resultado = monitor.collect_watch(
-            self.conn, self.config, FailingProvider(), self.watch
+        result = monitor.run_round(
+            self.conn, self.config, provider, include_watches=False, notifier=notifier
         )
-        self.assertFalse(resultado.ok)
-        self.assertIn("fora do ar", resultado.error)
+        self.assertEqual(len(result.alerts), 1)
+        alerta = result.alerts[0]
+        self.assertEqual(alerta.destination, "LIS")
+        self.assertIn(alerta.driver, ("distortion", "both"))
+        self.assertLess(alerta.distortion, -15)
+        self.assertTrue(alerta.notified)
+        self.assertEqual(len(notifier.sent), 1)
 
-    def test_modelo_nao_e_contaminado_pela_propria_cotacao(self):
-        """A avaliação compara com a história anterior, não com ela mesma."""
-        antes = monitor.route_model_for(self.conn, self.watch)[0].n
-        resultado = self.coletar(self.esperado * 0.68)
-        self.assertEqual(resultado.assessment.n_samples, antes)
+    def test_falha_de_um_destino_nao_derruba_a_rodada(self):
+        class Parcial(FakeProvider):
+            def search(self, query):
+                if query.destination == "HND":
+                    raise ProviderError("sem resultado para HND")
+                return super().search(query)
 
-    def test_flexibilidade_grava_uma_observacao_por_data(self):
-        self.watch.flex_days = 2
-        resultado = self.coletar(self.esperado)
-        self.assertEqual(len(resultado.observations), 5)
+        result = monitor.run_round(self.conn, self.config, Parcial(), include_watches=False)
+        self.assertEqual(result.basket.size, 9)
+        self.assertEqual(len(result.errors), 1)
+        self.assertIn("HND", result.errors[0])
+
+    def test_cesta_e_reconstruida_do_banco(self):
+        provider = FakeProvider({"MAD": 82.0}, default_index=103.0)
+        original = monitor.run_round(self.conn, self.config, provider, include_watches=False)
+        recuperada = monitor.current_basket(self.conn)
+        self.assertAlmostEqual(recuperada.index, original.basket.index, places=4)
+        self.assertEqual(recuperada.size, original.basket.size)
+        self.assertAlmostEqual(recuperada.index_of("MAD"), original.basket.index_of("MAD"), places=4)
+
+    def test_indice_gravado_bate_com_a_serie(self):
+        """O número do painel, do alerta e da série precisa ser o mesmo."""
+        provider = FakeProvider({"LIS": 84.0}, default_index=100.0)
+        monitor.run_round(self.conn, self.config, provider, include_watches=False)
+        basket = monitor.current_basket(self.conn)
+        serie = db.destination_index_series(self.conn, "LIS")
+        self.assertAlmostEqual(basket.index_of("LIS"), serie[-1][1], places=6)
 
 
-class TestDeduplicacaoDeAlertas(unittest.TestCase):
+class TestDeduplicacao(unittest.TestCase):
     def setUp(self):
         self.conn = memory_db()
-        self.config = test_config(alert_cooldown_hours=12, alert_improve_pct=3.0)
-        seeded_route(self.conn)
-        self.watch = make_watch(days_ahead=120)
-        self.watch.id = db.insert_watch(self.conn, self.watch)
-        model, _ = monitor.route_model_for(self.conn, self.watch)
-        self.esperado = model.predict(self.watch.departure_date, 120)
+        self.config = test_config(alert_cooldown_hours=24, alert_improve_pct=3.0)
+        self.provider = FakeProvider({"LIS": 74.0}, default_index=101.0)
 
-    def coletar(self, preco, quando=None):
-        return monitor.collect_watch(
-            self.conn, self.config, FakeProvider(preco), self.watch, now=quando
+    def rodar(self, quando):
+        return monitor.run_round(
+            self.conn, self.config, self.provider, include_watches=False, now=quando
         )
 
-    def test_nao_repete_o_mesmo_alerta_dentro_da_carencia(self):
+    def test_nao_repete_dentro_da_carencia(self):
         agora = datetime.now()
-        primeiro = self.coletar(self.esperado * 0.68, agora)
-        segundo = self.coletar(self.esperado * 0.68, agora + timedelta(hours=1))
-        self.assertIsNotNone(primeiro.alert)
-        self.assertIsNone(segundo.alert)
-
-    def test_repete_quando_o_preco_melhora(self):
-        agora = datetime.now()
-        self.coletar(self.esperado * 0.68, agora)
-        melhor = self.coletar(self.esperado * 0.60, agora + timedelta(hours=1))
-        self.assertIsNotNone(melhor.alert)
+        self.assertEqual(len(self.rodar(agora).alerts), 1)
+        self.assertEqual(len(self.rodar(agora + timedelta(hours=2)).alerts), 0)
 
     def test_repete_depois_da_carencia(self):
         agora = datetime.now()
-        self.coletar(self.esperado * 0.68, agora)
-        depois = self.coletar(self.esperado * 0.68, agora + timedelta(hours=13))
-        self.assertIsNotNone(depois.alert)
+        self.rodar(agora)
+        self.assertEqual(len(self.rodar(agora + timedelta(hours=25)).alerts), 1)
+
+    def test_repete_quando_o_preco_melhora(self):
+        agora = datetime.now()
+        self.rodar(agora)
+        self.provider.index_by_destination["LIS"] = 62.0
+        self.assertEqual(len(self.rodar(agora + timedelta(hours=2)).alerts), 1)
 
 
-class TestPrecoAlvo(unittest.TestCase):
-    def test_preco_alvo_alerta_mesmo_sem_sinal_estatistico(self):
+class TestViagensAcompanhadas(unittest.TestCase):
+    def setUp(self):
+        self.conn = memory_db()
+        self.config = test_config()
+
+    def test_viagem_e_cotada_e_indexada(self):
+        watch = make_watch("LIS", days_ahead=90)
+        watch.id = db.insert_watch(self.conn, watch)
+        basket = monitor.run_round(
+            self.conn, self.config, FakeProvider(), include_watches=False
+        ).basket
+        result = monitor.collect_watch(
+            self.conn, self.config, FakeProvider({"LIS": 80.0}), watch, basket
+        )
+        self.assertTrue(result.ok)
+        self.assertAlmostEqual(result.verdict.index, 80.0, places=3)
+        self.assertEqual(result.quote.kind, KIND_WATCH)
+
+    def test_destino_fora_da_cesta_e_recusado(self):
+        watch = make_watch("MAO", days_ahead=90)
+        watch.id = db.insert_watch(self.conn, watch)
+        result = monitor.collect_watch(self.conn, self.config, FakeProvider(), watch)
+        self.assertFalse(result.ok)
+        self.assertIn("não está na cesta", result.error)
+
+    def test_flexibilidade_escolhe_o_menor_indice(self):
+        """Entre datas vizinhas vence o menor índice, não o menor preço bruto:
+        uma data barata só por ser baixa estação não é oportunidade."""
+        watch = make_watch("CUN", days_ahead=90, flex_days=3)
+        watch.id = db.insert_watch(self.conn, watch)
+        result = monitor.collect_watch(self.conn, self.config, FakeProvider(), watch)
+        self.assertTrue(result.ok)
+        self.assertAlmostEqual(result.verdict.index, 100.0, places=2)
+
+    def test_rodada_completa_inclui_as_viagens(self):
+        watch = make_watch("JFK", days_ahead=100)
+        watch.id = db.insert_watch(self.conn, watch)
+        result = monitor.run_round(self.conn, self.config, FakeProvider())
+        self.assertEqual(len(result.watch_results), 1)
+        self.assertTrue(result.watch_results[0].ok)
+        self.assertIsNotNone(db.get_watch(self.conn, watch.id).last_checked_at)
+
+    def test_viagem_pausada_nao_e_cotada(self):
+        watch = make_watch("JFK", days_ahead=100)
+        watch.active = False
+        db.insert_watch(self.conn, watch)
+        result = monitor.run_round(self.conn, self.config, FakeProvider())
+        self.assertEqual(result.watch_results, [])
+
+    def test_datas_candidatas_descartam_o_passado(self):
+        watch = make_watch("LIS", days_ahead=1, flex_days=3)
+        datas = monitor.candidate_dates(watch, date.today())
+        self.assertTrue(all(d >= date.today() for d in datas))
+
+
+class TestRecalibracaoNaRodada(unittest.TestCase):
+    def test_recalibracao_corrige_um_desvio_conhecido(self):
+        """Mercado 18% acima da tabela: a recalibração precisa reencontrar isso."""
         conn = memory_db()
         config = test_config()
-        seeded_route(conn)
-        watch = make_watch(days_ahead=120)
-        model, _ = monitor.route_model_for(conn, watch)
-        esperado = model.predict(watch.departure_date, 120)
-        watch.target_price = esperado * 1.01  # alvo folgado: preço normal já atinge
-        watch.id = db.insert_watch(conn, watch)
+        provider = quiet_provider(bias=1.18)
+        agora = datetime.now()
+        for i in range(12):
+            monitor.run_round(
+                conn, config, provider, include_watches=False,
+                now=agora - timedelta(days=14 * i),
+            )
+        antes = monitor.run_round(
+            conn, config, provider, include_watches=False, now=agora
+        ).basket.index
+        self.assertGreater(antes, 112)
 
-        resultado = monitor.collect_watch(conn, config, FakeProvider(esperado), watch)
-        self.assertIsNotNone(resultado.alert)
-        self.assertEqual(resultado.assessment.verdict, "target_hit")
+        aplicadas = calibration.apply(conn, calibration.propose_all(conn, since_days=400))
+        self.assertEqual(len(aplicadas), 10)
 
+        depois = monitor.run_round(
+            conn, config, provider, include_watches=False, now=agora
+        ).basket.index
+        self.assertLess(abs(depois - 100), abs(antes - 100))
 
-class TestRodadaCompleta(unittest.TestCase):
-    def test_run_collection_percorre_apenas_rotas_ativas(self):
+    def test_rodada_usa_a_base_recalibrada(self):
         conn = memory_db()
         config = test_config()
-        ativa = make_watch(label="ativa", days_ahead=90)
-        ativa.id = db.insert_watch(conn, ativa)
-        pausada = make_watch(label="pausada", destination="MAD", days_ahead=90)
-        pausada.active = False
-        pausada.id = db.insert_watch(conn, pausada)
+        from flightwatch.models import BaseOverride
 
-        resultados = monitor.run_collection(conn, config, SyntheticProvider())
-        self.assertEqual(len(resultados), 1)
-        self.assertEqual(resultados[0].watch.id, ativa.id)
-
-    def test_snapshot_traz_ultima_cotacao_e_modelo(self):
-        conn = memory_db()
-        config = test_config()
-        seeded_route(conn)
-        watch = make_watch(days_ahead=120)
-        watch.id = db.insert_watch(conn, watch)
-        monitor.collect_watch(conn, config, SyntheticProvider(), watch)
-
-        snapshot = monitor.watch_snapshot(conn, watch)
-        self.assertIsNotNone(snapshot["latest"])
-        self.assertIsNotNone(snapshot["assessment"])
-        self.assertTrue(snapshot["model"].fitted)
+        db.upsert_base_override(
+            conn, BaseOverride(destination="LIS", base_price=8400.0, updated_at=datetime.now())
+        )
+        result = monitor.run_round(conn, config, FakeProvider(), include_watches=False)
+        quotes = [q for q in db.quotes_for_round(conn, result.round_id) if q.destination == "LIS"]
+        self.assertTrue(quotes)
+        self.assertAlmostEqual(quotes[0].base_used, 8400.0, places=4)
 
 
 if __name__ == "__main__":

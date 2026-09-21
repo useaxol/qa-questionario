@@ -1,15 +1,22 @@
-{% macro severity_badge(assessment) %}
-  {% if assessment %}
-    {% set tone = severity_tone.get(assessment.severity, ('normal', 'Dentro do normal')) %}
+{% macro level_badge(verdict) %}
+  {% if verdict %}
+    {% set tone = level_tone.get(verdict.level, ('normal', 'Dentro do normal')) %}
     <span class="badge {{ tone[0] }}"><span class="mark"></span>{{ tone[1] }}</span>
   {% else %}
     <span class="badge"><span class="mark"></span>Sem cotação</span>
   {% endif %}
 {% endmacro %}
 
-{% macro deal_meter(score) %}
-  {% set cls = 'hot' if score >= 85 else ('warm' if score >= 65 else '') %}
+{% macro score_meter(score) %}
+  {% set cls = 'hot' if score >= 80 else ('warm' if score >= 55 else '') %}
   <div class="meter {{ cls }}"><span style="width: {{ '%.0f'|format(score) }}%"></span></div>
+{% endmacro %}
+
+{% macro index_pill(value) %}
+  {% if value is none %}<span class="pill">—</span>
+  {% elif value <= 92 %}<span class="pill low">{{ '%.0f'|format(value) }}</span>
+  {% elif value >= 110 %}<span class="pill high">{{ '%.0f'|format(value) }}</span>
+  {% else %}<span class="pill">{{ '%.0f'|format(value) }}</span>{% endif %}
 {% endmacro %}
 
 {% macro trip_line(watch) %}

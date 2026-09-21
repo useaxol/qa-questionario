@@ -31,6 +31,17 @@ def _env_float(name: str, default: float) -> float:
         return default
 
 
+def _env_ints(name: str, default: tuple) -> tuple:
+    raw = _env(name)
+    if raw is None:
+        return default
+    try:
+        values = tuple(int(part) for part in raw.replace(";", ",").split(",") if part.strip())
+    except ValueError:
+        return default
+    return values or default
+
+
 def _env_bool(name: str, default: bool) -> bool:
     raw = _env(name)
     if raw is None:
@@ -48,13 +59,22 @@ class Config:
     # Coleta
     provider: str = "synthetic"
     currency: str = "BRL"
-    collect_interval_minutes: int = 180
+    #: 24 h por padrão: 10 destinos × 3 sondagens × 1 rodada/dia = 900
+    #: chamadas/mês, folgado dentro da cota gratuita da Amadeus (2.000).
+    collect_interval_minutes: int = 1440
     collect_jitter_seconds: int = 90
     request_timeout: int = 25
     max_offers: int = 20
 
+    # Metodologia da cesta — fixa por design; mudá-la quebra a série histórica.
+    basket_origin: str = "GRU"
+    #: Ímpar de propósito: com contagem par a mediana cairia entre duas
+    #: sondagens e o índice exibido não corresponderia a cotação nenhuma.
+    probe_horizons: tuple = (30, 60, 120)
+    probe_nights: int = 10
+
     # Alertas
-    alert_cooldown_hours: int = 12
+    alert_cooldown_hours: int = 24
     alert_improve_pct: float = 3.0
     notify_console: bool = True
     notify_file: Optional[str] = os.path.join("data", "alerts.jsonl")
@@ -78,11 +98,14 @@ class Config:
             db_path=_env("FLIGHTWATCH_DB", DEFAULT_DB),
             provider=_env("FLIGHTWATCH_PROVIDER", "synthetic"),
             currency=_env("FLIGHTWATCH_CURRENCY", "BRL").upper(),
-            collect_interval_minutes=_env_int("FLIGHTWATCH_INTERVAL_MIN", 180),
+            collect_interval_minutes=_env_int("FLIGHTWATCH_INTERVAL_MIN", 1440),
             collect_jitter_seconds=_env_int("FLIGHTWATCH_JITTER_SEC", 90),
             request_timeout=_env_int("FLIGHTWATCH_TIMEOUT", 25),
             max_offers=_env_int("FLIGHTWATCH_MAX_OFFERS", 20),
-            alert_cooldown_hours=_env_int("FLIGHTWATCH_ALERT_COOLDOWN_H", 12),
+            basket_origin=_env("FLIGHTWATCH_BASKET_ORIGIN", "GRU").upper(),
+            probe_horizons=_env_ints("FLIGHTWATCH_PROBE_HORIZONS", (30, 60, 120)),
+            probe_nights=_env_int("FLIGHTWATCH_PROBE_NIGHTS", 10),
+            alert_cooldown_hours=_env_int("FLIGHTWATCH_ALERT_COOLDOWN_H", 24),
             alert_improve_pct=_env_float("FLIGHTWATCH_ALERT_IMPROVE_PCT", 3.0),
             notify_console=_env_bool("FLIGHTWATCH_NOTIFY_CONSOLE", True),
             notify_file=_env("FLIGHTWATCH_NOTIFY_FILE", os.path.join("data", "alerts.jsonl")),

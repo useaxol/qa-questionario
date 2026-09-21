@@ -1,128 +1,179 @@
 {% extends "base.html" %}
-{% from "_macros.html" import severity_badge, deal_meter, trip_line with context %}
+{% from "_macros.html" import level_badge, score_meter, index_pill, trip_line with context %}
 {% block content %}
 
-<h1>Painel</h1>
+<h1>A cesta agora</h1>
 <p class="subtitle">
-  Cada rota é comparada ao seu próprio preço padrão — o que aquela rota costuma custar
-  naquele período do ano, comprando com aquela antecedência. O alerta dispara quando a
-  cotação cai fora dessa faixa, não quando cai um pouco.
+  Dez destinos cotados no mesmo instante, com a mesma metodologia. Cada um vira um
+  índice contra o seu benchmark — 100 é o preço de referência. A mediana dos dez é o
+  índice de mercado, e é ele que separa <strong>“tudo caiu”</strong> de
+  <strong>“este destino descolou”</strong>.
 </p>
 
-{% if cards %}
-  {% if best and best.assessment %}
+{% if basket %}
   <div class="card" style="margin-bottom:18px">
-    <h3>Melhor oportunidade agora</h3>
+    <h3>Índice de mercado</h3>
     <div class="hero">
-      <span class="figure">
-        {% if best.assessment.discount_pct > 0 %}−{{ '%.0f'|format(best.assessment.discount_pct) }}%{% else %}{{ best.latest.price|money(best.watch.currency) }}{% endif %}
-      </span>
+      <span class="figure">{{ basket.index|idx }}</span>
       <span class="context">
-        <strong>{{ best.watch.display_name }}</strong> ·
-        {{ best.latest.price|money(best.watch.currency) }}
-        contra {{ (best.assessment.expected_price * best.watch.passengers)|money(best.watch.currency) }} esperados ·
-        {{ severity_badge(best.assessment) }}
-        <br>{{ trip_line(best.watch) }}
+        <strong>{{ summary.state }}</strong> — {{ summary.detail }}<br>
+        {{ basket.size }} destinos medidos em {{ snapshot.collected_at|dt('%d/%m/%Y às %H:%M') }} ·
+        dispersão {{ basket.dispersion|idx(1) }} pontos ·
+        mais barato da cesta: <strong>{{ summary.cheapest }}</strong> ({{ summary.cheapest_index|idx }})
       </span>
     </div>
   </div>
-  {% endif %}
 
-  <div class="grid stats" style="margin-bottom:26px">
+  <div class="grid stats" style="margin-bottom:22px">
     <div class="card stat">
-      <div class="label">Rotas monitoradas</div>
-      <div class="value">{{ stats.active }}</div>
-      <div class="foot">{{ cards|length }} cadastradas</div>
+      <div class="label">Destinos distorcidos</div>
+      <div class="value">{{ distorted|length }}</div>
+      <div class="foot">abaixo da faixa normal agora</div>
     </div>
     <div class="card stat">
-      <div class="label">Cotações no histórico</div>
-      <div class="value">{{ '{:,}'.format(stats.observations).replace(',', '.') }}</div>
-      <div class="foot">{{ stats.routes }} rota(s) com série própria</div>
+      <div class="label">Rodadas medidas</div>
+      <div class="value">{{ stats.rounds }}</div>
+      <div class="foot">{{ stats.quotes }} cotações no total</div>
     </div>
     <div class="card stat">
       <div class="label">Alertas em 30 dias</div>
       <div class="value">{{ stats.alerts_30d }}</div>
-      <div class="foot">{{ deals|length }} oportunidade(s) abertas agora</div>
+      <div class="foot">distorções registradas</div>
     </div>
     <div class="card stat">
-      <div class="label">Economia potencial</div>
-      <div class="value">{{ potential|money('BRL') if potential else '—' }}</div>
-      <div class="foot">soma das quedas abaixo do padrão</div>
+      <div class="label">Viagens acompanhadas</div>
+      <div class="value">{{ watch_cards|length }}</div>
+      <div class="foot">datas específicas suas</div>
     </div>
   </div>
 
   <div class="toolbar">
-    <a class="btn" href="{{ url_for('new_watch') }}">Nova rota</a>
-    <form method="post" action="{{ url_for('collect') }}"><button class="btn ghost" type="submit">Coletar agora</button></form>
+    <form method="post" action="{{ url_for('collect') }}"><button class="btn" type="submit">Medir agora</button></form>
+    <a class="btn ghost" href="{{ url_for('new_watch') }}">Acompanhar uma viagem</a>
     <span class="spacer"></span>
-    <a class="btn link" href="{{ url_for('api_watches') }}">API JSON</a>
+    <a class="btn link" href="{{ url_for('api_basket') }}">API JSON</a>
   </div>
 
+  <div class="chart-card">
+    <h3>Índice por destino</h3>
+    <div class="legend">
+      <span class="item"><span class="key low"></span>Abaixo da referência (mais barato)</span>
+      <span class="item"><span class="key high"></span>Acima da referência</span>
+      <span class="item"><span class="key reference"></span>100 = benchmark</span>
+      <span class="item"><span class="key compare" style="height:10px;width:10px;border-radius:3px"></span>Cesta</span>
+    </div>
+    {{ bars|safe }}
+    <p class="cap">
+      A distância de cada barra até a marca da cesta é a distorção — o sinal que
+      diferencia uma promoção pontual de um movimento geral de mercado.
+    </p>
+  </div>
+
+  <h2>Destinos</h2>
   <div class="list">
-    {% for card in cards %}
-      {% set w = card.watch %}{% set a = card.assessment %}
-      <div class="watch-row {{ 'paused' if not w.active }}">
+    {% for row in rows %}
+      {% set v = row.verdict %}
+      <div class="dest-row">
         <div>
-          <div class="route"><a href="{{ url_for('watch_detail', watch_id=w.id) }}">{{ w.display_name }}</a></div>
-          <div class="meta">{{ trip_line(w) }}</div>
+          <div class="route"><a href="{{ url_for('destination_detail', code=row.dest.iata) }}">{{ row.dest.city }}</a>
+            <span class="meta">{{ row.dest.iata }} · {{ row.dest.region }}</span></div>
+          <div class="meta">{{ row.dest.note }}</div>
         </div>
         <div>
-          {% if card.latest %}
-            <div class="price">{{ card.latest.price|money(w.currency) }}</div>
-            <div class="delta">
-              {% if a and a.method != 'insufficient' %}
-                padrão {{ (a.expected_price * w.passengers)|money(w.currency) }}
-                · {{ a.delta_label }}
-              {% else %}
-                histórico em formação
-              {% endif %}
-            </div>
+          {% if v %}
+            <div class="price">{{ v.price|money(v.currency) }}</div>
+            <div class="meta">benchmark {{ v.benchmark|money(v.currency) }}</div>
           {% else %}
-            <div class="delta">ainda sem cotação</div>
+            <div class="meta">sem cotação na última rodada</div>
           {% endif %}
+        </div>
+        <div class="num-cell">
+          {{ index_pill(v.index if v else none) }}
+          <div class="meta">índice</div>
+        </div>
+        <div class="num-cell">
+          <div class="delta {{ 'neg' if v and v.distortion is not none and v.distortion < 0 }}">
+            {{ v.distortion|points if v and v.distortion is not none else '—' }}
+          </div>
+          <div class="meta">vs cesta</div>
         </div>
         <div>
-          {{ severity_badge(a) }}
-          {% if a and a.method != 'insufficient' %}
-            <div style="margin-top:7px">{{ deal_meter(a.deal_score) }}</div>
-            <div class="meta" style="margin-top:4px">nota {{ '%.0f'|format(a.deal_score) }}/100 · confiança {{ confidence_label.get(a.confidence, a.confidence) }}</div>
+          {{ level_badge(v) }}
+          {% if v and v.level >= 1 %}
+            <div style="margin-top:6px">{{ score_meter(v.score) }}</div>
+            <div class="meta" style="margin-top:3px">{{ v.driver_label }}</div>
           {% endif %}
         </div>
-        <div class="spark-cell">
-          {{ card.spark|safe }}
-          <div class="meta">{{ card.n_points }} dia(s) de coleta{% if not w.active %} · pausada{% endif %}</div>
-        </div>
+        <div class="spark-cell">{{ row.spark|safe }}<div class="meta">{{ row.points }} rodada(s)</div></div>
       </div>
     {% endfor %}
   </div>
 
-  {% if alerts %}
-    <h2>Últimos alertas</h2>
-    <div class="list"><table>
-      <thead><tr><th>Quando</th><th>Rota</th><th class="num">Preço</th><th class="num">Padrão</th><th class="num">vs padrão</th><th>Veredito</th></tr></thead>
-      <tbody>
-      {% for alert in alerts %}
-        <tr>
-          <td>{{ alert.created_at|dt('%d/%m %H:%M') }}</td>
-          <td>{{ alert.message }}</td>
-          <td class="num">{{ alert.price|money() }}</td>
-          <td class="num">{{ alert.expected_price|money() }}</td>
-          <td class="num">{{ alert.delta_label }}</td>
-          <td>z = {{ '%+.2f'|format(alert.z_score) }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table></div>
+  {% if rounds > 1 %}
+  <h2>Índice de mercado ao longo do tempo</h2>
+  <div class="chart-card">
+    <div class="legend">
+      <span class="item"><span class="key"></span>Índice de mercado (mediana dos 10)</span>
+      <span class="item"><span class="key reference"></span>100 = benchmark</span>
+    </div>
+    {{ index_chart|safe }}
+    <p class="cap">Quando esta linha cai, o mercado inteiro barateou — não um destino em particular.</p>
+  </div>
   {% endif %}
 
 {% else %}
   <div class="card empty-state">
-    <h2>Nenhuma rota monitorada ainda</h2>
-    <p>Cadastre uma rota para começar, ou carregue a carteira de demonstração já com
-       mais de um ano de histórico reconstruído:</p>
-    <p><code>python run.py seed-demo</code></p>
-    <p style="margin-top:22px"><a class="btn" href="{{ url_for('new_watch') }}">Cadastrar primeira rota</a></p>
+    <h2>Nenhuma medição ainda</h2>
+    <p>A cesta precisa ser medida ao menos uma vez para existir um índice.</p>
+    <p><code>python run.py measure</code> — ou use o botão abaixo.</p>
+    <form method="post" action="{{ url_for('collect') }}" style="margin-top:22px">
+      <button class="btn" type="submit">Medir a cesta agora</button>
+    </form>
   </div>
+{% endif %}
+
+{% if watch_cards %}
+  <h2>Viagens acompanhadas</h2>
+  <div class="list">
+    {% for card in watch_cards %}
+      {% set v = card.verdict %}
+      <div class="watch-row {{ 'paused' if not card.watch.active }}">
+        <div>
+          <div class="route"><a href="{{ url_for('watch_detail', watch_id=card.watch.id) }}">{{ card.watch.display_name }}</a></div>
+          <div class="meta">{{ trip_line(card.watch) }}</div>
+        </div>
+        <div>
+          {% if card.quote %}
+            <div class="price">{{ card.quote.price|money(card.quote.currency) }}</div>
+            <div class="meta">benchmark {{ card.quote.benchmark|money(card.quote.currency) }}</div>
+          {% else %}<div class="meta">ainda sem cotação</div>{% endif %}
+        </div>
+        <div class="num-cell">{{ index_pill(v.index if v else none) }}<div class="meta">índice</div></div>
+        <div>{{ level_badge(v) }}{% if v and v.level >= 1 %}<div class="meta" style="margin-top:4px">{{ v.driver_label }}</div>{% endif %}</div>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+{% if alerts %}
+  <h2>Últimos alertas</h2>
+  <div class="list"><table>
+    <thead><tr><th>Quando</th><th>Destino</th><th class="num">Preço</th><th class="num">Índice</th>
+               <th class="num">Cesta</th><th class="num">Distorção</th><th>Motivo</th></tr></thead>
+    <tbody>
+      {% for a in alerts %}
+      <tr>
+        <td>{{ a.created_at|dt('%d/%m %H:%M') }}</td>
+        <td><a href="{{ url_for('destination_detail', code=a.destination) }}">{{ a.destination }}</a></td>
+        <td class="num">{{ a.price|money(a.currency) }}</td>
+        <td class="num">{{ a.index_value|idx }}</td>
+        <td class="num">{{ a.basket_index|idx }}</td>
+        <td class="num">{{ a.distortion|points }}</td>
+        <td>{{ driver_tone.get(a.driver, a.driver) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
 {% endif %}
 
 {% endblock %}

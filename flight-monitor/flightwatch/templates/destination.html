@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% from "_macros.html" import level_badge, score_meter, index_pill with context %}
+{% block title %}{{ dest.city }} · Índice de passagens{% endblock %}
+{% block content %}
+
+<h1>{{ dest.city }}</h1>
+<p class="subtitle">
+  {{ dest.iata }} · {{ dest.country }} · {{ dest.region }} · {{ '{:,}'.format(distance).replace(',', '.') }} km de {{ probe.origin }}<br>
+  {{ dest.note }}
+</p>
+
+<div class="toolbar">
+  <form method="post" action="{{ url_for('collect') }}"><button class="btn" type="submit">Medir a cesta agora</button></form>
+  <span class="spacer"></span>
+  <a class="btn link" href="{{ url_for('api_destination_history', code=dest.iata) }}">Série em JSON</a>
+</div>
+
+{% if verdict %}
+<div class="card" style="margin-bottom:18px">
+  <div class="hero">
+    <span class="figure">{{ verdict.index|idx }}</span>
+    <span class="context">
+      {{ level_badge(verdict) }}<br>
+      {{ verdict.price|money(verdict.currency) }} contra benchmark de
+      <strong>{{ verdict.benchmark|money(verdict.currency) }}</strong> — {{ verdict.gap_label }}<br>
+      {% if verdict.distortion is not none %}
+        cesta em {{ verdict.basket_index|idx }} · distorção
+        <strong>{{ verdict.distortion|points }} pontos</strong>
+      {% else %}
+        cesta incompleta nesta rodada
+      {% endif %}
+    </span>
+  </div>
+
+  <div style="margin-top:18px" class="kv">
+    <div><div class="k">Sinal</div><div class="v">{{ '%.1f'|format(verdict.signal)|replace('.', ',') }} banda(s)</div>{{ score_meter(verdict.score) }}</div>
+    <div><div class="k">Banda normal</div><div class="v">±{{ dest.band_pct|idx }} pontos</div></div>
+    <div><div class="k">Desvio vs benchmark</div><div class="v">{{ '%.1f'|format(verdict.signal_benchmark)|replace('.', ',') }}</div></div>
+    <div><div class="k">Desvio vs cesta</div><div class="v">{{ '%.1f'|format(verdict.signal_distortion)|replace('.', ',') }}</div></div>
+    <div><div class="k">Quem mandou</div><div class="v">{{ verdict.driver_label }}</div></div>
+  </div>
+
+  <ul class="reasons">{% for reason in verdict.reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<h2>Índice deste destino contra a cesta</h2>
+<div class="chart-card">
+  <div class="legend">
+    <span class="item"><span class="key"></span>Índice de {{ dest.iata }}</span>
+    <span class="item"><span class="key compare"></span>Índice de mercado (cesta)</span>
+    <span class="item"><span class="key band"></span>Banda normal (±{{ dest.band_pct|idx }})</span>
+    <span class="item"><span class="key reference"></span>100 = benchmark</span>
+  </div>
+  {{ chart|safe }}
+  <p class="cap">
+    {{ points }} rodada(s). Quando as duas linhas descem juntas, é mercado. Quando esta
+    desce e a cesta não, é distorção — e é aí que o alerta dispara.
+  </p>
+</div>
+
+<h2>Como o benchmark deste destino é montado</h2>
+<div class="grid two">
+  <div class="card">
+    <h3>Preço-base</h3>
+    <p style="margin:0;color:var(--ink-2)">
+      Tabela: <strong>{{ bases.table_base|money }}</strong><br>
+      Em uso: <strong>{{ bases.base|money }}</strong>
+      {% if bases.calibrated %}
+        <br><span style="color:var(--muted)">recalibrado {{ bases.change_pct|points }}% a partir de
+        {{ bases.n_quotes }} cotações em {{ bases.updated_at|dt }}</span>
+      {% else %}
+        <br><span style="color:var(--muted)">ainda sem recalibração</span>
+      {% endif %}
+    </p>
+  </div>
+  <div class="card">
+    <h3>Meses mais baratos</h3>
+    <p style="margin:0;color:var(--ink-2)">
+      <strong>{{ dest.cheapest_months|join(', ') }}</strong> — abaixo da média anual do destino.<br>
+      Banda de variação normal: ±{{ dest.band_pct|idx }}%.
+    </p>
+  </div>
+</div>
+
+<div class="chart-card" style="margin-top:14px">
+  <h3>Sazonalidade por mês de viagem</h3>
+  <div class="legend">
+    <span class="item"><span class="key high"></span>Acima da média anual</span>
+    <span class="item"><span class="key low"></span>Abaixo da média anual</span>
+  </div>
+  {{ seasonal|safe }}
+  <p class="cap">
+    Da tabela de benchmark: o quanto o mês de viagem move o preço de referência.
+    O índice já desconta isso — viajar em julho não faz o índice subir.
+  </p>
+</div>
+
+{% if alerts %}
+<h2>Alertas deste destino</h2>
+<div class="list"><table>
+  <thead><tr><th>Quando</th><th class="num">Preço</th><th class="num">Índice</th><th class="num">Cesta</th>
+             <th class="num">Distorção</th><th>Motivo</th></tr></thead>
+  <tbody>
+    {% for a in alerts %}
+    <tr>
+      <td>{{ a.created_at|dt('%d/%m/%Y %H:%M') }}</td>
+      <td class="num">{{ a.price|money(a.currency) }}</td>
+      <td class="num">{{ a.index_value|idx }}</td>
+      <td class="num">{{ a.basket_index|idx }}</td>
+      <td class="num">{{ a.distortion|points }}</td>
+      <td>{{ driver_tone.get(a.driver, a.driver) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+
+{% if quotes %}
+<h2>Cotações recentes</h2>
+<div class="list"><table>
+  <thead><tr><th>Medido em</th><th>Ida</th><th class="num">Antecedência</th><th>Cia</th>
+             <th class="num">Preço</th><th class="num">Benchmark</th><th class="num">Índice</th></tr></thead>
+  <tbody>
+    {% for q in quotes %}
+    <tr>
+      <td>{{ q.collected_at|dt('%d/%m %H:%M') }}</td>
+      <td>{{ q.departure_date|dt }}</td>
+      <td class="num">{{ q.days_to_departure }}d</td>
+      <td>{{ q.airline or '—' }}</td>
+      <td class="num">{{ q.price|money(q.currency) }}</td>
+      <td class="num">{{ q.benchmark|money(q.currency) }}</td>
+      <td class="num">{{ q.index_value|idx }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+
+{% endblock %}

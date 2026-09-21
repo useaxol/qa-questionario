@@ -2,27 +2,40 @@
 {% block title %}Nova rota · Monitor de passagens{% endblock %}
 {% block content %}
 
-<h1>Monitorar uma nova rota</h1>
+<h1>Acompanhar uma viagem</h1>
 <p class="subtitle">
-  Qualquer origem e destino do mundo. O monitor cota periodicamente e compara cada
-  cotação com o padrão histórico daquela rota naquele período do ano.
+  Uma data específica que você quer acompanhar. Ela é cotada a cada rodada e recebe o
+  mesmo tratamento da cesta: índice contra o benchmark e comparação com o mercado.
 </p>
 
 <form class="stacked" method="post">
   <div class="field-row">
     <div>
       <label for="origin">Origem (IATA)</label>
-      <input id="origin" name="origin" list="airports" required maxlength="3"
-             placeholder="GRU" value="{{ form.get('origin', '') }}" autocomplete="off">
+      <input id="origin" name="origin" list="origins" required maxlength="3"
+             placeholder="GRU" value="{{ form.get('origin', probe.origin) }}" autocomplete="off">
+      <div class="hint">A tabela foi escrita para GRU; outras origens usam um ajuste aproximado.</div>
     </div>
     <div>
-      <label for="destination">Destino (IATA)</label>
-      <input id="destination" name="destination" list="airports" required maxlength="3"
-             placeholder="LIS" value="{{ form.get('destination', '') }}" autocomplete="off">
+      <label for="destination">Destino</label>
+      <select id="destination" name="destination" required>
+        <option value="">selecione…</option>
+        {% for code in basket_codes %}
+          {% set d = destinations[code] %}
+          <option value="{{ code }}" {{ 'selected' if form.get('destination') == code }}>
+            {{ d.city }} ({{ code }}) — {{ d.country }}</option>
+        {% endfor %}
+      </select>
+      <div class="hint">Só os 10 destinos da cesta têm benchmark para comparar.</div>
     </div>
   </div>
-  <datalist id="airports">
-    {% for ap in airports_list %}<option value="{{ ap.iata }}">{{ ap.city }}, {{ ap.country }} — {{ ap.name }}</option>{% endfor %}
+  <datalist id="origins">
+    {% for ap in [] %}{% endfor %}
+    <option value="GRU">São Paulo</option><option value="GIG">Rio de Janeiro</option>
+    <option value="CNF">Belo Horizonte</option><option value="BSB">Brasília</option>
+    <option value="POA">Porto Alegre</option><option value="CWB">Curitiba</option>
+    <option value="REC">Recife</option><option value="SSA">Salvador</option>
+    <option value="FOR">Fortaleza</option><option value="VCP">Campinas</option>
   </datalist>
 
   <div class="field-row">
@@ -92,10 +105,10 @@
 
   <div class="checkbox">
     <input id="collect_now" name="collect_now" type="checkbox" checked>
-    <label for="collect_now" style="margin:0">Fazer a primeira cotação agora</label>
+    <label for="collect_now" style="margin:0">Cotar agora</label>
   </div>
 
-  <div><button class="btn" type="submit">Começar a monitorar</button></div>
+  <div><button class="btn" type="submit">Começar a acompanhar</button></div>
 </form>
 
 {% endblock %}

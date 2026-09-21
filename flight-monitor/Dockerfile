@@ -7,8 +7,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# O banco vive em /app/data; monte um volume para preservar o histórico entre
-# reinícios — sem histórico o monitor perde a referência de preço padrão.
+# O banco vive em /app/data. A referência de preço vem da tabela de benchmark
+# (que está no código), então o app funciona com o volume vazio — mas a série
+# do índice e a recalibração vivem aqui. Monte um volume para preservá-las.
 VOLUME ["/app/data"]
 
 ENV FLIGHTWATCH_DB=/app/data/flightwatch.db \

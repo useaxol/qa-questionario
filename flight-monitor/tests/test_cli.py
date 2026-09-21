@@ -1,4 +1,4 @@
-"""Testes da linha de comando e do backfill."""
+"""Testes da linha de comando."""
 from __future__ import annotations
 
 import io
@@ -8,61 +8,10 @@ import unittest
 from contextlib import redirect_stdout
 from datetime import date, timedelta
 
-from helpers import make_watch, memory_db, test_config
+from helpers import test_config
 
-from flightwatch import analytics, db, seed
+from flightwatch import benchmarks
 from flightwatch.cli import main
-from flightwatch.providers.synthetic import SyntheticProvider
-
-
-class TestBackfill(unittest.TestCase):
-    def test_backfill_cobre_o_ano_e_varias_antecedencias(self):
-        conn = memory_db()
-        total = seed.backfill_route(
-            conn, SyntheticProvider(), "GRU", "LIS", currency="BRL", days_back=420, step_days=6
-        )
-        self.assertGreater(total, 300)
-        amostras = analytics.samples_from_observations(
-            db.route_history(conn, "GRU", "LIS", "round", "ECONOMY", "BRL")
-        )
-        self.assertGreater(len({s.week for s in amostras}), 40)
-        self.assertGreater(len({s.bucket for s in amostras}), 5)
-
-    def test_backfill_da_serie_usa_a_data_da_viagem(self):
-        conn = memory_db()
-        watch = make_watch(days_ahead=200)
-        watch.id = db.insert_watch(conn, watch)
-        total = seed.backfill_series(conn, SyntheticProvider(), watch, days_back=90, step_days=10)
-        self.assertGreater(total, 5)
-        historico = db.watch_history(conn, watch.id)
-        self.assertTrue(all(o.departure_date == watch.departure_date for o in historico))
-        # A antecedência cai conforme a data da consulta avança.
-        antecedencias = [o.days_to_departure for o in historico]
-        self.assertEqual(antecedencias, sorted(antecedencias, reverse=True))
-
-    def test_provedor_sem_backfill_recusa(self):
-        from flightwatch.providers import ProviderError
-        from flightwatch.providers.base import Provider, SearchQuery
-
-        class SemBackfill(Provider):
-            name = "sem"
-            supports_backfill = False
-
-            def search(self, query: SearchQuery):
-                return []
-
-        with self.assertRaises(ProviderError):
-            seed.backfill_route(memory_db(), SemBackfill(), "GRU", "LIS")
-
-    def test_bootstrap_grava_referencias_com_peso_menor(self):
-        conn = memory_db()
-        watch = make_watch(days_ahead=120)
-        watch.id = db.insert_watch(conn, watch)
-        total = seed.bootstrap_from_metrics(conn, SyntheticProvider(), watch)
-        self.assertGreater(total, 0)
-        historico = db.route_history(conn, "GRU", "LIS", "round", "ECONOMY", "BRL")
-        self.assertTrue(all(o.source == "metric" for o in historico))
-        self.assertTrue(all(o.weight < 1.0 for o in historico))
 
 
 class TestCLI(unittest.TestCase):
@@ -83,43 +32,91 @@ class TestCLI(unittest.TestCase):
         code, saida = self.run_cli("init")
         self.assertEqual(code, 0)
         self.assertTrue(os.path.exists(self.db_path))
-        self.assertIn("Banco pronto", saida)
+        self.assertIn("LIS", saida)
 
-    def test_add_list_collect_e_report(self):
-        ida = (date.today() + timedelta(days=120)).isoformat()
-        volta = (date.today() + timedelta(days=134)).isoformat()
-
-        code, _ = self.run_cli("add", "GRU", "LIS", ida, "--return", volta,
-                               "--label", "Lisboa", "--backfill", "360")
+    def test_table_imprime_os_dez_destinos(self):
+        code, saida = self.run_cli("table")
         self.assertEqual(code, 0)
+        for code_iata in benchmarks.BASKET:
+            self.assertIn(code_iata, saida)
+
+    def test_doctor_reporta_configuracao_e_cota(self):
+        code, saida = self.run_cli("doctor")
+        self.assertEqual(code, 0)
+        self.assertIn("chamadas por rodada", saida)
+        self.assertIn("Metodologia", saida)
+        self.assertIn("simula preços", saida)  # aviso do provedor sintético
+
+    def test_measure_mede_a_cesta(self):
+        code, saida = self.run_cli("measure", "--no-notify")
+        self.assertEqual(code, 0)
+        self.assertIn("Índice de mercado", saida)
+        for code_iata in benchmarks.BASKET:
+            self.assertIn(code_iata, saida)
+
+    def test_basket_mostra_a_ultima_medicao(self):
+        self.run_cli("measure", "--no-notify")
+        code, saida = self.run_cli("basket")
+        self.assertEqual(code, 0)
+        self.assertIn("Índice de mercado", saida)
+
+    def test_basket_sem_medicao_orienta(self):
+        code, saida = self.run_cli("basket")
+        self.assertEqual(code, 0)
+        self.assertIn("measure", saida)
+
+    def test_destination_detalha_um_destino(self):
+        self.run_cli("measure", "--no-notify")
+        code, saida = self.run_cli("destination", "lis")
+        self.assertEqual(code, 0)
+        self.assertIn("Sazonalidade", saida)
+        self.assertIn("Preço-base", saida)
+
+    def test_destination_fora_da_cesta_falha(self):
+        code, _ = self.run_cli("destination", "MAO")
+        self.assertEqual(code, 2)
+
+    def test_add_list_e_remove(self):
+        ida = (date.today() + timedelta(days=90)).isoformat()
+        volta = (date.today() + timedelta(days=100)).isoformat()
+        code, saida = self.run_cli("add", "LIS", ida, "--return", volta, "--label", "Lisboa")
+        self.assertEqual(code, 0)
+        self.assertIn("Benchmark", saida)
 
         code, saida = self.run_cli("list")
         self.assertEqual(code, 0)
         self.assertIn("GRU→LIS", saida)
 
-        code, saida = self.run_cli("collect", "--no-notify")
+        code, _ = self.run_cli("remove", "1")
         self.assertEqual(code, 0)
-        self.assertIn("padrão", saida)
+        _, saida = self.run_cli("list")
+        self.assertIn("Nenhuma viagem", saida)
 
-        code, saida = self.run_cli("report", "1")
-        self.assertEqual(code, 0)
-        self.assertIn("Sazonalidade por mês", saida)
-        self.assertIn("Curva de antecedência", saida)
-
-    def test_add_recusa_ida_e_volta_sem_volta(self):
+    def test_add_recusa_destino_fora_da_cesta(self):
         ida = (date.today() + timedelta(days=60)).isoformat()
-        code, _ = self.run_cli("add", "GRU", "LIS", ida)
+        code, _ = self.run_cli("add", "MAO", ida, "--oneway")
         self.assertEqual(code, 2)
 
     def test_add_recusa_data_passada(self):
         passado = (date.today() - timedelta(days=5)).isoformat()
-        code, _ = self.run_cli("add", "GRU", "LIS", passado, "--oneway")
+        code, _ = self.run_cli("add", "LIS", passado, "--oneway")
         self.assertEqual(code, 2)
 
-    def test_report_de_rota_inexistente(self):
-        self.run_cli("init")
-        code, _ = self.run_cli("report", "999")
+    def test_add_exige_volta_em_ida_e_volta(self):
+        ida = (date.today() + timedelta(days=60)).isoformat()
+        code, _ = self.run_cli("add", "LIS", ida)
         self.assertEqual(code, 2)
+
+    def test_recalibrate_dry_run_nao_aplica(self):
+        self.run_cli("measure", "--no-notify")
+        code, saida = self.run_cli("recalibrate", "--dry-run")
+        self.assertEqual(code, 0)
+        self.assertIn("Simulação", saida)
+
+    def test_reset_calibration(self):
+        code, saida = self.run_cli("reset-calibration")
+        self.assertEqual(code, 0)
+        self.assertIn("tabela do código", saida)
 
     def test_alerts_em_json(self):
         self.run_cli("init")
@@ -127,13 +124,24 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("[]", saida)
 
-    def test_remove(self):
-        ida = (date.today() + timedelta(days=60)).isoformat()
-        self.run_cli("add", "GRU", "LIS", ida, "--oneway")
-        code, _ = self.run_cli("remove", "1")
+    def test_demo_monta_serie_e_viagens(self):
+        code, saida = self.run_cli("demo", "--rounds", "8")
         self.assertEqual(code, 0)
-        _, saida = self.run_cli("list")
-        self.assertIn("Nenhuma rota", saida)
+        self.assertIn("Índice de mercado", saida)
+        _, lista = self.run_cli("list")
+        self.assertIn("GRU→LIS", lista)
+
+    def test_demo_nao_sobrescreve_sem_force(self):
+        self.run_cli("demo", "--rounds", "4")
+        code, saida = self.run_cli("demo", "--rounds", "4")
+        self.assertEqual(code, 1)
+        self.assertIn("--force", saida)
+
+    def test_purge(self):
+        self.run_cli("measure", "--no-notify")
+        code, saida = self.run_cli("purge", "--keep-days", "0")
+        self.assertEqual(code, 0)
+        self.assertIn("removidas", saida)
 
 
 if __name__ == "__main__":
