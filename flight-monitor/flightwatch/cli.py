@@ -432,7 +432,10 @@ def cmd_serve(args: argparse.Namespace) -> int:
         collector.start()
         print(f"Medição automática a cada {config.collect_interval_minutes} min.")
 
-    print(f"Painel em http://{config.host}:{config.port}  (provedor: {config.provider})")
+    # 0.0.0.0 é o endereço de escuta, não um endereço que o navegador abre.
+    browsable = "localhost" if config.host in ("0.0.0.0", "::", "") else config.host
+    print(f"Painel em http://{browsable}:{config.port}  (provedor: {config.provider})")
+    print("Ctrl+C para parar.")
     try:
         app.run(host=config.host, port=config.port, debug=args.debug, use_reloader=False)
     finally:
