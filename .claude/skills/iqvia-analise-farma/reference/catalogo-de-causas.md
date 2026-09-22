@@ -30,7 +30,10 @@ quando o dado sustentar. Registrar a evidência ao lado da causa.
 
 | Hipótese | Como testar | Dado necessário |
 |---|---|---|
-| Falta distribuição | Cobertura % por canal/região/bandeira; lojas sem o item | **ED** (ou base de PDV sem fabricante, como proxy da cesta) |
+| Falta distribuição | Cobertura % por canal/região/bandeira; PDVs classe `Z` (não positivados) | **ED** (ou base de PDV sem fabricante, como proxy da cesta) |
+| Está na loja mas gira pouco | Performance D/E/F em PDVs positivados; oportunidade de giro/mix | **ED** |
+| É deficiência concentrada em poucas bandeiras | IMP. cliente vs IMP. categoria por bandeira + Δ share | **ED**, performance por bandeira |
+| É posicionamento de preço | Distribuição do portfólio por tier (PREMIUM/HIGH/MEDIUM/LOW) × Δ volume por tier | Regular / montado |
 | Perdeu venda por ruptura | Ruptura % e dias de estoque, por rede | **Panorama de Estoque** |
 | Migrou para o online | Participação do online na categoria; sortimento e preço por player | **RDC** |
 | É concentração de canal | Share de canal ao longo dos MATs; R$/loja; nº de lojas | Montado + CH Talks |

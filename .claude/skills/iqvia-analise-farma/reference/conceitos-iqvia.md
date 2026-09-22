@@ -1,8 +1,11 @@
 # Conceitos e nomenclatura IQVIA — varejo farmacêutico Brasil
 
 Referência de leitura. **Não inventar definição que não esteja aqui** — perguntar.
-Marcas `[CONFIRMAR]` indicam definição que precisa ser fechada com o deck oficial de conceitos
-IQVIA ou com o time.
+Marcas `[CONFIRMAR]` indicam definição que ainda precisa ser fechada com o time.
+
+Performance A–F, CAT, matriz de ação, cálculo de oportunidade, tiers de preço e elementos de
+crescimento têm arquivo próprio: **`conceitos-ed-oportunidade.md`** (definições oficiais do deck
+IQVIA *Main Concepts*).
 
 ## 1. Painéis e bases
 
@@ -53,6 +56,10 @@ Estudo de **cobertura, giro e oportunidade por ponto de venda**, com dimensão d
 Responde: em quantas lojas o produto está, em quais redes/bandeiras não está, qual o giro por loja
 onde está, e qual o tamanho da oportunidade de entrar. É a base certa para pergunta de
 distribuição, presença e sortimento — não dá para responder distribuição com sell-out agregado.
+
+Traz o aparato conceitual próprio — **performance A–F**, **CAT**, matriz **PROTEGER / ATACAR /
+AVALIAR / DESPRIORIZAR** e o **cálculo de oportunidade** contra a média do cluster.
+Tudo em `conceitos-ed-oportunidade.md`.
 
 ### Panorama de Estoque
 Dias de estoque e **ruptura (% de perda de venda sobre as vendas)**, por categoria e por rede.
@@ -108,22 +115,27 @@ de referência (base ABR/26, apenas PDVs ativos):
 | **MAT** | Ano móvel — 12 meses acumulados. `MAT Jul'26` = ago/25 a jul/26. Sempre nomear os meses na fonte |
 | **CAGR** | Crescimento médio anual composto. Em base MAT de 5 pontos, CAGR de 4 anos |
 | **Preço médio** | Valor ÷ unidades no período. **Não é preço de tabela** |
-| **Índice de preço** | Preço médio do fabricante ÷ preço médio do segmento × 100 (mercado = 100) |
+| **Índice de preço** | Preço médio do fabricante ÷ preço médio do segmento × 100 (mercado = 100). Tiers: PREMIUM > 200, HIGH 120–200, MEDIUM 80–120, LOW < 80 |
 | **Share de valor / de volume** | Participação em R$ e em unidades. Ler os dois: a diferença entre eles é posicionamento de preço |
 | **Δ p.p.** | Variação de share, em pontos percentuais. Share nunca varia em % |
 | **Contribuição ao crescimento (p.p.)** | Δ R$ do recorte ÷ valor total do período base × 100. A soma das contribuições reconstrói o crescimento total |
 | **FCC** | Código de item da IQVIA. "Item novo" = FCC sem venda no MAT anterior |
+| **Performance (A–F)** | Classificação do PDV por desvio do share vs a média do cluster (canal × região). `Z` = PDV não positivado. Ver `conceitos-ed-oportunidade.md` |
+| **Positivado** | PDV com venda do produto do cliente no período. O complemento (`Z`) é a oportunidade de distribuição |
 | **Sortimento ativo** | Nº de FCCs distintos com venda no período |
 
-### CAT 1 a 8 — octis de valor de PDV
-As lojas são ordenadas por faturamento da cesta e divididas em 8 faixas, **cada uma concentrando
-12,5% do faturamento**. Logo, CAT1 tem poucas lojas de altíssimo giro e CAT8 tem a maioria das
-lojas com giro baixo.
+### CAT 1 a 8 — categorias de PDV
+As lojas são agrupadas em 8 categorias, **cada uma com o mesmo volume de vendas (12,5%)** e
+número diferente de PDVs. CAT1 tem poucas lojas de altíssimo giro; CAT8, a maioria das lojas com
+giro baixo. Faixas: **ALTO** = CAT 1–3, **BOM** = CAT 4–6, **BAIXO** = CAT 7–8.
+
+O CAT é calculado sobre o mercado-alvo do projeto — muda se a cesta muda.
 
 Uso: separa a disputa por share (nas CATs grandes, mercado maduro) da disputa por crescimento
 (nas CATs intermediárias). A composição da cesta dentro da loja muda com o CAT — e um segmento
 pode recuar nas lojas grandes e crescer a dois dígitos nas médias. **Nunca ler variação de
-segmento só no agregado.**
+segmento só no agregado.** Cruzado com performance A–F, vira a matriz de ação por PDV
+(`conceitos-ed-oportunidade.md`).
 
 ## 4. Hierarquia de classificação IQVIA
 

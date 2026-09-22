@@ -13,6 +13,7 @@ análise que a pergunta do briefing exige uma base que não foi contratada.
 | Como isso se move por canal, região, UF, bandeira? | **Mercado montado** | Cobertura e giro por loja com dimensão de fabricante |
 | Onde a cesta está concentrada por tipo de loja? | **Base de PDV** (CATs) | Onde **meu** produto está — não tem fabricante |
 | Em quantas lojas estou? Onde não estou? Quanto vale entrar? | **ED — Estudo de Distribuição** | Por que o consumidor escolhe |
+| Em quais lojas eu ataco, protejo ou deixo de lado? | **ED** — matriz CAT × performance | Nada sem dimensão de fabricante por PDV |
 | Estou perdendo venda por falta de produto? | **Panorama de Estoque** | Se a demanda existe |
 | Como está meu preço vs concorrente? Promo? Elasticidade? | **Mercado montado** + camada de pricing | Preço praticado por loja individual, salvo contratação específica |
 | Quanto o online já pesa? Qual meu sortimento e preço lá? | **RDC** | Comparação direta com o físico sem ajuste de painel |
@@ -32,7 +33,9 @@ Nesta ordem, antes de qualquer análise:
 5. **Quais dimensões vêm na extração?** Fabricante, marca, SKU, canal, região, UF, bandeira, PDV,
    CAT — item por item. Não presumir.
 6. **Vamos ter ED?** Se a pergunta de negócio tem qualquer palavra de presença, cobertura,
-   sortimento, execução ou "por que não vendemos em X", a resposta precisa ser sim.
+   sortimento, execução ou "por que não vendemos em X", a resposta precisa ser sim. Tendo ED,
+   fechar também: **qual o cluster** da performance (padrão é canal × região) e **onde cai o corte
+   de CAT** entre ATACAR e AVALIAR — os dois mudam todos os números de oportunidade.
 7. **Vamos ter estoque?** Se o cliente reclama de demanda perdida ou se a categoria tem ruptura
    histórica alta.
 8. **Vamos ter pricing além do regular?** O sell-out regular já dá preço médio e índice de preço.

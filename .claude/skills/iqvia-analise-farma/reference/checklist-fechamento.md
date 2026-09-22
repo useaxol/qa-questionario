@@ -50,6 +50,9 @@ Rodar inteiro antes de entregar. Cada item é passa/não passa.
 - [ ] Ordenadas por tamanho, não por facilidade
 - [ ] Cada uma comparada a uma régua (crescimento anual da cesta, faturamento da praça, ruptura)
 - [ ] Nenhuma depende de o mercado mudar de tendência — todas de acompanhá-la
+- [ ] **Com ED:** cluster da performance e corte de CAT declarados no slide
+- [ ] **Com ED:** as quatro contagens da matriz somam o universo de PDVs
+- [ ] **Com ED:** oportunidade de positivados e de não positivados reportadas separadamente
 - [ ] Next steps derivado das lacunas de escopo, com a ferramenta IQVIA que responde cada uma
 
 ## 6. As perguntas que o cliente vai fazer na sala
@@ -66,5 +69,7 @@ anexo.
 - "Estou perdendo share ou o mercado caiu?" → **contribuição do cliente vs demais**
 - "Estou caro?" → **índice de preço por segmento + share valor vs volume**
 - "É falta de produto na loja?" → **ED e/ou ruptura** (ou declarar que a base não responde)
+- "Em quais lojas eu mando o time?" → **matriz CAT × performance**, lista de ATACAR
+- "Esse share do PDV é bom ou ruim?" → **performance A–F**, que já é desvio vs o cluster
 - "Quanto isso vale?" → **oportunidade dimensionada em R$**
 - "O que eu faço na segunda-feira?" → as quatro leituras, ordenadas

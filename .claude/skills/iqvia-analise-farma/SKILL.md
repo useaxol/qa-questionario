@@ -8,8 +8,10 @@ description: Monta análises e decks de mercado a partir de dados IQVIA do varej
 Seis passos. **Não montar slide antes do plano aprovado (passo 2).** A ordem importa: escopo de
 dados → ponte entre recortes → plano → conferência → análise → deck.
 
-Conceitos e nomenclatura: `reference/conceitos-iqvia.md`. Nunca inventar definição de base,
-métrica ou canal — se não estiver na referência, perguntar.
+Conceitos e nomenclatura: `reference/conceitos-iqvia.md` e, para tudo que vem do ED
+(performance A–F, CAT, matriz de ação, cálculo de oportunidade, tiers de preço, elementos de
+crescimento), `reference/conceitos-ed-oportunidade.md`. Nunca inventar definição de base, métrica
+ou canal — se não estiver na referência, perguntar.
 
 Exemplo do fluxo inteiro rodando, destrinchado slide a slide:
 `reference/exemplo-deck-referencia.md`.
@@ -23,6 +25,7 @@ briefings, mas boa parte das perguntas de negócio só fecha com camada adiciona
 |---|---|
 | Tamanho, crescimento, share, preço médio, mix | PMB Mix + mercado montado |
 | Onde o produto está / não está, cobertura, giro por loja | **Estudo de Distribuição (ED)** |
+| Em quais lojas atacar, proteger ou despriorizar | **ED** — matriz CAT × performance |
 | Ruptura, dias de estoque, disponibilidade | **Panorama de Estoque** |
 | Pricing fino, elasticidade, promo, índice vs concorrente | Mercado montado + camada de pricing |
 | E-commerce, sortimento e preço online | **Retail Digital Commerce (RDC)** |
@@ -62,7 +65,8 @@ O funil padrão, de cima para baixo:
 7. **Fabricantes → marcas → SKUs** — quem explica o ano
 8. **Canal × Região × UF** — onde o crescimento está
 9. **PDV** — CAT, bandeira, cobertura loja a loja
-10. **Camadas adicionais** — ED, estoque, e-commerce, consumidor (as que entraram no passo 0)
+10. **Camadas adicionais** — ED (performance, cobertura, matriz de ação, oportunidade por
+    bandeira e UF), estoque, e-commerce, consumidor — as que entraram no passo 0
 11. **Posição do cliente** e oportunidades dimensionadas em R$
 12. **Next steps** — o que a IQVIA responde em seguida
 
@@ -131,5 +135,8 @@ vai fazer na sala.
 - **MAT contra MAT, mês contra o mesmo mês.** Nada de comparar MAT com ano fechado.
 - **Base de comparação sempre checada.** Marca que cai 46% pode ter explodido no ano anterior.
 - **Oportunidade se dimensiona em R$**, sobre o mercado em disputa, e se ordena por tamanho —
-  não por facilidade de execução.
+  não por facilidade de execução. Havendo ED, calcular pela metodologia oficial (share do PDV vs
+  média do cluster), não estimar.
+- **Elementos de crescimento no slide são três** — orgânico, novos SKUs, preço/mix. É a convenção
+  que o cliente conhece.
 - **Quatro leituras de oportunidade, no máximo.** Acima disso o cliente não leva nenhuma.

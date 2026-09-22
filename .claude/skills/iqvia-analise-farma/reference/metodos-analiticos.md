@@ -27,11 +27,14 @@ python3 scripts/decompor_crescimento.py extracao.xlsx \
 
 Notas de execução:
 - "Item novo" é **ausência de venda no MAT anterior**, nunca data de cadastro.
-- Descontinuados saem como parcela própria, não diluídos no orgânico — perda de base é leitura.
+- **No slide, apresentar nos três elementos da convenção oficial IQVIA** — crescimento orgânico,
+  novos SKUs, preço/mix (definições em `conceitos-ed-oportunidade.md`, §8). O script separa
+  descontinuados como quarta linha só para diagnóstico: ao levar para o deck, somar ao orgânico.
+- Descontinuados merecem leitura própria quando são materiais — vale um parágrafo na LEITURA,
+  não uma quarta barra no gráfico.
 - O resíduo `preço/mix` mistura aumento de preço, mix de benefício, mix de canal e mix de tamanho.
-  **Nomear qual predomina** cruzando com preço médio por segmento — não deixar como "preço/mix".
-- Ao apresentar, as duas primeiras parcelas podem ser somadas num único "volume orgânico"
-  (como no deck de referência), desde que a nota de fonte diga isso.
+  **Nomear qual predomina** cruzando com preço médio por segmento e com tier de preço — não deixar
+  como "preço/mix".
 
 Como ler o resultado:
 
@@ -102,6 +105,9 @@ preço médio   = valor ÷ unidades
 ```
 
 - Comparar índice de preço **por segmento**, nunca só no total: o índice total é mix de segmento.
+- Classificar o portfólio em **tiers de preço** (PREMIUM / HIGH / MEDIUM / LOW — cortes em
+  `conceitos-ed-oportunidade.md`, §7) e cruzar com Δ volume por tier: é assim que se prova se o
+  mercado está premiumizando ou barateando.
 - Cruzar share de valor com share de volume. Share de volume > share de valor = preço abaixo do
   mercado; o inverso = prêmio.
 - Distinguir **ganho de preço** (mesma unidade mais cara) de **troca de benefício** (consumidor
@@ -143,7 +149,7 @@ Toda oportunidade se apresenta com **mercado em disputa em R$** e ordenada por t
 |---|---|
 | Share em segmento que cresce | distância p.p. para o líder × valor do segmento |
 | Praça abaixo do padrão | (share nacional − share da praça) × cesta da praça |
-| Distribuição (ED) | nº de lojas sem o item × giro médio da mesma faixa de loja |
+| Distribuição / giro (ED) | **metodologia oficial**: (share médio do cluster − share no PDV) × venda do mercado no PDV, somado nos PDVs-alvo. Ver `conceitos-ed-oportunidade.md`, §1 |
 | Ruptura | % de ruptura × faturamento da cesta |
 | Segmento com baixa participação | valor do segmento × share-alvo realista |
 
@@ -151,3 +157,7 @@ Comparar sempre com uma régua: o crescimento anual que a cesta inteira entregou
 duas vezes o crescimento do ano é um argumento; "ruptura de 6%" não é.
 
 **Teto de quatro leituras.** Ordenadas por tamanho do mercado em disputa, não por facilidade.
+
+Quando há ED, a oportunidade não se estima — se calcula por PDV contra a média do cluster, e se
+apresenta já classificada em PROTEGER / ATACAR / AVALIAR / DESPRIORIZAR, separando giro/mix de
+distribuição. Toda a mecânica está em `conceitos-ed-oportunidade.md`.
