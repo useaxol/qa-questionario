@@ -34,8 +34,8 @@ Nesta ordem, antes de qualquer análise:
    CAT — item por item. Não presumir.
 6. **Vamos ter ED?** Se a pergunta de negócio tem qualquer palavra de presença, cobertura,
    sortimento, execução ou "por que não vendemos em X", a resposta precisa ser sim. Tendo ED,
-   fechar também: **qual o cluster** da performance (padrão é canal × região) e **onde cai o corte
-   de CAT** entre ATACAR e AVALIAR — os dois mudam todos os números de oportunidade.
+   fechar também **qual o cluster** da performance — o padrão é canal × região, e mudar o cluster
+   muda todos os números de oportunidade.
 7. **Vamos ter estoque?** Se o cliente reclama de demanda perdida ou se a categoria tem ruptura
    histórica alta.
 8. **Vamos ter pricing além do regular?** O sell-out regular já dá preço médio e índice de preço.

@@ -50,7 +50,8 @@ Rodar inteiro antes de entregar. Cada item é passa/não passa.
 - [ ] Ordenadas por tamanho, não por facilidade
 - [ ] Cada uma comparada a uma régua (crescimento anual da cesta, faturamento da praça, ruptura)
 - [ ] Nenhuma depende de o mercado mudar de tendência — todas de acompanhá-la
-- [ ] **Com ED:** cluster da performance e corte de CAT declarados no slide
+- [ ] **Com ED:** cluster usado na performance declarado no slide (padrão canal × região)
+- [ ] **Com ED:** matriz nos quatro buckets de trabalho — PROTEGER, ATACAR, AVALIAR, DESPRIORIZAR
 - [ ] **Com ED:** as quatro contagens da matriz somam o universo de PDVs
 - [ ] **Com ED:** oportunidade de positivados e de não positivados reportadas separadamente
 - [ ] Next steps derivado das lacunas de escopo, com a ferramenta IQVIA que responde cada uma

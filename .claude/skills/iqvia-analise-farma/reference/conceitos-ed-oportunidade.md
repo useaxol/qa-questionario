@@ -93,30 +93,34 @@ O cruzamento das duas dimensões diz **o que fazer em cada loja**. É a saída m
                  A    B    C  │  D    E    F    Z
               ┌───────────────┼──────────────────┐
      CAT 1    │                                  │
-C    CAT 2    │                      A T A C A R │   prioridade ALTA
-A    CAT 3    │   P R O T E G E R                │
-T    CAT 4    │                                  │
+C    CAT 2    │                                  │
+A    CAT 3    │                      A T A C A R │
+T    CAT 4    │   P R O T E G E R                │
       ────    │               ├──────────────────┤
-     CAT 5    │                    A V A L I A R │   prioridade MÉDIA
-     CAT 6    │                                  │
+     CAT 5    │                                  │
+     CAT 6    │                    A V A L I A R │
               ├───────────────┴──────────────────┤
-     CAT 7    │      D E S P R I O R I Z A R     │   prioridade BAIXA
+     CAT 7    │      D E S P R I O R I Z A R     │
      CAT 8    │                                  │
               └──────────────────────────────────┘
 ```
 
-| Bucket | Regra | O que significa |
-|---|---|---|
-| **PROTEGER** | CAT 1–6 × A/B/C | Loja relevante onde já se está na média ou acima. Defender posição |
-| **ATACAR** | CAT 1–4 × D/E/F/Z | Loja de alto giro onde se está abaixo do cluster ou ausente. É aqui que a oportunidade se concretiza |
-| **AVALIAR** | CAT 5–6 × D/E/F/Z | Loja de giro médio abaixo da média. Entra conforme custo de servir |
-| **DESPRIORIZAR** | CAT 7–8 (qualquer performance) | 85% dos PDVs, 25% das vendas. Não sustenta esforço individual |
+| Bucket | Regra | O que significa | Ação |
+|---|---|---|---|
+| **PROTEGER** | CAT 1–6 × A/B/C | Loja relevante onde já se está na média do cluster ou acima | Defender posição |
+| **ATACAR** | CAT 1–4 × D/E/F/Z | Loja de alto giro onde se está abaixo do cluster ou ausente | É aqui que a oportunidade se concretiza — prioridade máxima |
+| **AVALIAR** | CAT 5–6 × D/E/F/Z | Loja de giro médio abaixo da média | Entra conforme custo de servir |
+| **DESPRIORIZAR** | CAT 7–8 (qualquer performance, inclusive Z) | A maioria dos PDVs, com 25% das vendas | Não sustenta esforço individual |
 
-> **O corte de CAT entre ATACAR e AVALIAR é parâmetro do projeto.** O diagrama conceitual do
-> material IQVIA divide em CAT 1–3 / CAT 4–6; a análise de referência usou CAT 1–4 / CAT 5–6.
-> Declarar o corte adotado no slide — sem isso os números não são reproduzíveis.
+Esta é a classificação de trabalho — a que sai nos slides de resultado e a que o time comercial
+recebe. Usar esses quatro nomes, com esses cortes.
+
+Validação do material de referência (61.328 PDVs): PROTEGER 2.981 · ATACAR 1.192 ·
+AVALIAR 5.033 · DESPRIORIZAR 52.122. As quatro contagens fecham o universo exatamente.
 
 Ao apresentar a matriz, trazer sempre as quatro contagens de PDV e conferir que somam o universo.
+E lembrar que **Z entra em ATACAR nas CATs 1–4**: PDV de alto giro sem o produto é a maior
+oportunidade unitária que existe, não uma loja "sem histórico".
 
 ## 5. Onde a oportunidade se desdobra
 
