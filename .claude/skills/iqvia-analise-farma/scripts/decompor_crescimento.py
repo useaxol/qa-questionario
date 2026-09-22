@@ -9,13 +9,17 @@ Decomposicao do crescimento entre dois MATs: volume organico + itens novos + pre
 Aceita .xlsx, .csv e .tsv. Imprime a decomposicao do total e de cada dimensao pedida em --por,
 mais o saneamento que o passo 3 da skill exige (itens novos, descontinuados, sortimento ativo).
 
-Convencao (identica a de reference/metodos-analiticos.md):
-    volume organico = SUM (un_t - un_t1) * preco_t1   [itens presentes nos dois MATs]
-    itens novos     = SUM valor_t                     [itens sem venda no MAT base]
+Convencao do modelo oficial IQVIA de Elementos de Crescimento (ver
+reference/metodos-analiticos.md). Classificacao de item NOVO por UNIDADES, nao por valor:
+
+    launch          = AND(un_atual > 0 ; un_anterior = 0)
+    organico        = SUM (un_t - un_t1) * preco_t1   [itens NAO launch; preco_t1 = val_t1/un_t1]
+    launch (novos)  = SUM valor_t                     [itens launch]
     preco/mix       = delta total - organico - novos   [residuo]
 
-Itens descontinuados (venda no base, zero no atual) sao reportados como parcela propria, nao
-dentro do organico, para nao esconder perda de base.
+Itens descontinuados (unidade no base, zero no atual) caem no organico como negativo no modelo
+oficial. Aqui saem em linha propria apenas para diagnostico: ao levar para o slide, somar ao
+organico para reproduzir os tres elementos da convencao IQVIA.
 """
 import argparse
 import sys
@@ -50,9 +54,11 @@ def decompor(df, col_item, col_periodo, col_valor, col_un, base, atual):
     v0, v1 = piv[(col_valor, base)], piv[(col_valor, atual)]
     u0, u1 = piv[(col_un, base)], piv[(col_un, atual)]
 
-    existente = (v0 > 0) & (v1 > 0)
-    novo = (v0 <= 0) & (v1 > 0)
-    descontinuado = (v0 > 0) & (v1 <= 0)
+    # Classificacao por UNIDADES, como faz o modelo oficial de Elementos de Crescimento:
+    #   launch = AND(un_atual > 0 ; un_anterior = 0)
+    existente = (u0 > 0) & (u1 > 0)
+    novo = (u0 <= 0) & (u1 > 0)
+    descontinuado = (u0 > 0) & (u1 <= 0)
 
     # preco do ano base, apenas onde ha unidades no base
     preco0 = pd.Series(0.0, index=piv.index)
@@ -61,6 +67,7 @@ def decompor(df, col_item, col_periodo, col_valor, col_un, base, atual):
 
     organico = float(((u1[existente] - u0[existente]) * preco0[existente]).sum())
     perda_desc = float((-u0[descontinuado] * preco0[descontinuado]).sum())
+    # Launch = J * P = un_atual * (valor_atual / un_atual) = valor atual do item
     novos = float(v1[novo].sum())
     delta = float(v1.sum() - v0.sum())
     preco_mix = delta - organico - perda_desc - novos
@@ -76,8 +83,8 @@ def decompor(df, col_item, col_periodo, col_valor, col_un, base, atual):
         "preco_mix": preco_mix,
     }
     saneamento = {
-        "itens_base": int((v0 > 0).sum()),
-        "itens_atual": int((v1 > 0).sum()),
+        "itens_base": int((u0 > 0).sum()),
+        "itens_atual": int((u1 > 0).sum()),
         "itens_novos": int(novo.sum()),
         "itens_descontinuados": int(descontinuado.sum()),
         "un_base": float(u0.sum()),

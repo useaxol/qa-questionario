@@ -180,15 +180,19 @@ e, cruzando com Δ volume por tier, se o mercado está premiumizando ou baratean
 
 ## 8. Elementos de crescimento — convenção oficial IQVIA
 
-Cálculo feito **no nível SKU**, em três elementos:
+Cálculo feito **no nível SKU/FCC**, em três elementos:
 
-| Elemento | Definição IQVIA |
-|---|---|
-| **Crescimento orgânico** | Crescimento de volume do período 1 para o período 2 |
-| **Novos SKUs** | SKUs cujo volume no período 1 é igual a 0 e apresentam volume no período 2 |
-| **Preço/Mix** | Contribuição do preço ou do mix para o crescimento do mercado, categoria ou segmento |
+| Elemento | Definição IQVIA | Fórmula do modelo |
+|---|---|---|
+| **Organic Growth** | Crescimento de volume do período 1 para o período 2 | `SE(launch="N"; (un_atual − un_ant) × preço_ant; 0)` |
+| **Launch (novos SKUs)** | SKUs cujo volume no período 1 é 0 e apresentam volume no período 2 | `SE(launch="S"; un_launch × preço_atual; 0)` ≡ valor atual do item |
+| **Price Increase (preço/mix)** | Contribuição do preço ou do mix para o crescimento | `(valor_atual − valor_ant) − Launch − Organic` |
+
+com `launch = SE(un_atual > 0 E un_ant = 0)` — **classificação por unidades, não por valor**.
 
 **Apresentar sempre nesses três elementos** — é a convenção que o cliente já conhece.
-`scripts/decompor_crescimento.py` reporta descontinuados como quarta linha apenas para
-diagnóstico interno; ao levar para o slide, somar descontinuados ao orgânico (é o que a definição
-IQVIA faz, já que são queda de volume do período 1 para o 2).
+Descontinuados caem inteiros no Organic Growth, como `−valor_anterior`; não são um quarto
+elemento. `scripts/decompor_crescimento.py` os reporta em linha separada só para diagnóstico.
+
+Mecânica completa, casos-limite e a prática de rodar nos dois anos:
+`metodos-analiticos.md`, §1.

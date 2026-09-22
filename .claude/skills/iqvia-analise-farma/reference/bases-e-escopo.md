@@ -28,7 +28,9 @@ Nesta ordem, antes de qualquer análise:
    Quem definiu esse recorte e quando foi a última revisão.
 2. **Qual a extração e a edição?** Nome do arquivo, `AAAAMM`, data de extração.
 3. **Qual o período?** Quantos MATs, qual mês de corte, e se precisa de série mensal ou trimestral
-   para datar viradas.
+   para datar viradas. Para elementos de crescimento, pedir **três períodos** — atual, anterior e
+   anterior−1 — em unidades e valor: é o que o modelo oficial consome e o que permite comparar a
+   composição do crescimento entre dois anos.
 4. **Valor em quê?** R$ CPP nominal ou deflacionado. Se deflacionado, por qual índice.
 5. **Quais dimensões vêm na extração?** Fabricante, marca, SKU, canal, região, UF, bandeira, PDV,
    CAT — item por item. Não presumir.

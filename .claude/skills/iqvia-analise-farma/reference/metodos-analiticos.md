@@ -2,21 +2,45 @@
 
 ## 1. Decomposição do crescimento — o método central
 
-Todo Δ de valor entre dois MATs se decompõe em três parcelas. É a leitura que diferencia "o
+Todo Δ de valor entre dois MATs se decompõe em três elementos. É a leitura que diferencia "o
 mercado cresceu" de "o mercado está trocando de itens".
 
-```
-Δ valor total = volume orgânico + descontinuados + itens novos + preço/mix
+**Estrutura verificada contra o modelo oficial** `Elementos de Crescimento` (planilha de
+processamento IQV OnGoing). Cálculo no nível **FCC**, com três períodos de input — atual,
+anterior e anterior−1 — em unidades e em valor.
 
-volume orgânico  = Σ (un_t − un_t-1) × preço_t-1    [itens com venda nos DOIS MATs]
-descontinuados   = Σ (− un_t-1) × preço_t-1         [itens com venda em t-1 e zero em t]
-itens novos      = Σ valor_t                        [FCCs sem venda no MAT t-1]
-preço/mix        = Δ total − orgânico − descont. − novos     [resíduo]
+### Classificação do item (por UNIDADES, não por valor)
+
+```
+launch = SE( un_atual > 0  E  un_anterior = 0 )        →  "S" / "N"
 ```
 
-Rodar com `scripts/decompor_crescimento.py`, que já devolve as quatro parcelas, o sortimento
-ativo, a variação de unidades e a de preço médio — no total e em cada dimensão pedida — e avisa
-quando as partes não fecham o total.
+Um item é novo quando **não teve unidade** no período anterior. Comparar valor no lugar de
+unidade dá resultado diferente e não é o critério do modelo.
+
+### Os três elementos
+
+```
+preço_base   = valor_anterior ÷ un_anterior            [preço do período que serve de base]
+preço_atual  = valor_atual    ÷ un_atual
+
+Organic Growth  = SE(launch="N";  (un_atual − un_anterior) × preço_base;  0)
+Launch          = SE(launch="S";  un_launch × preço_atual;  0)     ≡ valor_atual do item
+Price Increase  = (valor_atual − valor_anterior) − Launch − Organic Growth
+```
+
+Três propriedades que a álgebra do modelo garante, e que valem como teste de qualquer
+implementação:
+
+| Caso | O que o modelo produz |
+|---|---|
+| Item novo | `Launch` = valor atual integral do item. Orgânico e preço ficam em zero |
+| Item descontinuado (zera no atual) | Cai **inteiro** no orgânico, como `−valor_anterior`. Preço fica em zero |
+| Item existente sem mudar volume | Todo o Δ vai para `Price Increase` |
+
+Por isso **descontinuados não são um quarto elemento** — a convenção IQVIA tem três, e a perda de
+base está dentro do orgânico. `scripts/decompor_crescimento.py` reporta descontinuados em linha
+separada apenas para diagnóstico; ao levar para o slide, somar ao orgânico.
 
 ```
 python3 scripts/decompor_crescimento.py extracao.xlsx \
@@ -25,28 +49,34 @@ python3 scripts/decompor_crescimento.py extracao.xlsx \
     --por Segmento --por Fabricante
 ```
 
-Notas de execução:
-- "Item novo" é **ausência de venda no MAT anterior**, nunca data de cadastro.
-- **No slide, apresentar nos três elementos da convenção oficial IQVIA** — crescimento orgânico,
-  novos SKUs, preço/mix (definições em `conceitos-ed-oportunidade.md`, §8). O script separa
-  descontinuados como quarta linha só para diagnóstico: ao levar para o deck, somar ao orgânico.
-- Descontinuados merecem leitura própria quando são materiais — vale um parágrafo na LEITURA,
-  não uma quarta barra no gráfico.
-- O resíduo `preço/mix` mistura aumento de preço, mix de benefício, mix de canal e mix de tamanho.
-  **Nomear qual predomina** cruzando com preço médio por segmento e com tier de preço — não deixar
-  como "preço/mix".
+### Rodar nos dois anos
 
-Como ler o resultado:
+O modelo oficial calcula a decomposição **duas vezes** — atual vs anterior, e anterior vs
+anterior−1. É o que permite dizer se a *composição* do crescimento mudou, não só o ritmo: um ano
+que crescia por volume orgânico e passa a crescer por lançamento conta uma história que o número
+de topo esconde. Pedir três períodos na extração, não dois.
+
+### Notas de execução
+
+- "Item novo" é **ausência de unidade no período anterior**, nunca data de cadastro. Item que
+  existia há dois anos, sumiu e voltou entra como launch.
+- **No slide, apresentar nos três elementos da convenção IQVIA** — Organic Growth, Launch,
+  Price Increase (ou Preço/Mix). É a régua que o cliente conhece.
+- O terceiro elemento é **resíduo**: mistura aumento de preço, mix de benefício, mix de canal e
+  mix de tamanho. **Nomear qual predomina** cruzando com preço médio por segmento e com tier de
+  preço — não deixar como "preço/mix". Existe versão do modelo que separa preço de mix; quando
+  ela não estiver em uso, a separação é argumentativa e precisa ser sustentada por outro corte.
+- Rodar a decomposição **por segmento e por fabricante**, não só no total. É aí que aparece quem
+  cresce por demanda e quem cresce por preço.
+
+### Como ler o resultado
 
 | Padrão | Diagnóstico |
 |---|---|
-| Volume orgânico positivo e dominante | A categoria ganha consumidor. Crescimento sustentável |
-| Itens novos dominantes, orgânico ≈ 0 | Renovação de portfólio. Depende de calendário de lançamento |
-| Itens novos dominantes, orgânico **negativo** | Lançamento substitui a própria base — canibalização |
-| Preço/mix dominante, volume negativo | Crescimento de fachada. Volume é o alerta |
-
-Rodar a decomposição **por segmento e por fabricante**, não só no total. É aí que aparece quem
-cresce por demanda e quem cresce por preço.
+| Orgânico positivo e dominante | A categoria ganha consumidor. Crescimento sustentável |
+| Launch dominante, orgânico ≈ 0 | Renovação de portfólio. Depende de calendário de lançamento |
+| Launch dominante, orgânico **negativo** | Lançamento substitui a própria base — canibalização |
+| Preço dominante, volume negativo | Crescimento de fachada. Volume é o alerta |
 
 ## 2. Contribuição ao crescimento (p.p.)
 

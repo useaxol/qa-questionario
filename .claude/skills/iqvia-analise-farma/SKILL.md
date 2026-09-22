@@ -98,8 +98,8 @@ planilha de dezenas de MB cabe em poucos KB.
 Todo movimento identificado passa por duas perguntas, nesta ordem:
 
 1. **Quanto e onde?** — decompor sempre: valor = volume × preço; e crescimento =
-   volume orgânico + descontinuados + itens novos + preço/mix. Fórmulas em
-   `reference/metodos-analiticos.md`; cálculo pronto em `scripts/decompor_crescimento.py`.
+   Organic Growth + Launch + Price Increase. Fórmulas em `reference/metodos-analiticos.md`;
+   cálculo pronto em `scripts/decompor_crescimento.py`.
 2. **Por quê?** — testar as hipóteses causais do catálogo em
    `reference/catalogo-de-causas.md` contra os dados, não escolher a mais bonita.
 
@@ -142,6 +142,7 @@ vai fazer na sala.
 - **Oportunidade se dimensiona em R$**, sobre o mercado em disputa, e se ordena por tamanho —
   não por facilidade de execução. Havendo ED, calcular pela metodologia oficial (share do PDV vs
   média do cluster), não estimar.
-- **Elementos de crescimento no slide são três** — orgânico, novos SKUs, preço/mix. É a convenção
-  que o cliente conhece.
+- **Elementos de crescimento no slide são três** — Organic Growth, Launch, Price Increase. É a
+  convenção que o cliente conhece, e item novo se classifica por **unidade zero no período
+  anterior**, não por valor.
 - **Quatro leituras de oportunidade, no máximo.** Acima disso o cliente não leva nenhuma.
