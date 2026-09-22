@@ -88,6 +88,11 @@ Para cada linha do plano, confirmar:
 
 Reportar divergências em bloco. **Não plotar número que não fecha.**
 
+Quando o cliente manda planilha de cálculo (matriz de ED, elementos de crescimento), auditar a
+lógica antes de aceitar os números: `python3 scripts/dump_formulas.py arquivo.xlsx` extrai só as
+fórmulas — fórmula arrastada por milhares de linhas vira uma linha com a contagem, então uma
+planilha de dezenas de MB cabe em poucos KB.
+
 ## Passo 4 — Analisar: movimento e depois causa
 
 Todo movimento identificado passa por duas perguntas, nesta ordem:
