@@ -32,6 +32,8 @@ quando o dado sustentar. Registrar a evidência ao lado da causa.
 |---|---|---|
 | Falta distribuição | Cobertura % por canal/região/bandeira; PDVs classe `Z` (não positivados) | **ED** (ou base de PDV sem fabricante, como proxy da cesta) |
 | Está na loja mas gira pouco | Performance D/E/F em PDVs positivados; oportunidade de giro/mix | **ED** |
+| Perdeu ponto de venda no ano | ΔDN por marca e canal (PDVs com presença, atual vs anterior) | **ED**, bloco DN/DP |
+| Está presente onde o giro não está | DN alta com DP baixa | **ED**, bloco DN/DP |
 | É deficiência concentrada em poucas bandeiras | IMP. cliente vs IMP. categoria por bandeira + Δ share | **ED**, performance por bandeira |
 | É posicionamento de preço | Distribuição do portfólio por tier (PREMIUM/HIGH/MEDIUM/LOW) × Δ volume por tier | Regular / montado |
 | Perdeu venda por ruptura | Ruptura % e dias de estoque, por rede | **Panorama de Estoque** |

@@ -179,7 +179,7 @@ Toda oportunidade se apresenta com **mercado em disputa em R$** e ordenada por t
 |---|---|
 | Share em segmento que cresce | distância p.p. para o líder × valor do segmento |
 | Praça abaixo do padrão | (share nacional − share da praça) × cesta da praça |
-| Distribuição / giro (ED) | **metodologia oficial**: (share médio do cluster − share no PDV) × venda do mercado no PDV, somado nos PDVs-alvo. Ver `conceitos-ed-oportunidade.md`, §1 |
+| Distribuição / giro (ED) | **metodologia oficial**: `SE(dif > 0; 0; demanda_total_PDV × ABS(dif))`, com `dif = share_PDV − share_cluster`, somado nos PDVs-alvo. Soma é bruta, não líquida. Ver `conceitos-ed-oportunidade.md`, §1 |
 | Ruptura | % de ruptura × faturamento da cesta |
 | Segmento com baixa participação | valor do segmento × share-alvo realista |
 

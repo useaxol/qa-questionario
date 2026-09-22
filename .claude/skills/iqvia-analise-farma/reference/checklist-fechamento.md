@@ -53,7 +53,9 @@ Rodar inteiro antes de entregar. Cada item é passa/não passa.
 - [ ] **Com ED:** cluster usado na performance declarado no slide (padrão canal × região)
 - [ ] **Com ED:** matriz nos quatro buckets de trabalho — PROTEGER, ATACAR, AVALIAR, DESPRIORIZAR
 - [ ] **Com ED:** as quatro contagens da matriz somam o universo de PDVs
-- [ ] **Com ED:** oportunidade de positivados e de não positivados reportadas separadamente
+- [ ] **Com ED:** oportunidade de DISTRIBUIÇÃO (classe Z) e de GIRO/MIX reportadas separadamente
+- [ ] **Com ED:** dito na fonte que a soma de oportunidade é bruta (tem piso em zero por PDV)
+- [ ] **Com ED:** de-para de UF→região e de tipo→canal auditados; nenhuma célula `CHECARRRRR`
 - [ ] Next steps derivado das lacunas de escopo, com a ferramenta IQVIA que responde cada uma
 
 ## 6. As perguntas que o cliente vai fazer na sala
