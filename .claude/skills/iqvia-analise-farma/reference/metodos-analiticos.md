@@ -49,12 +49,31 @@ python3 scripts/decompor_crescimento.py extracao.xlsx \
     --por Segmento --por Fabricante
 ```
 
-### Rodar nos dois anos
+### Rodar nos dois anos — e a ressalva para comparar composição
 
-O modelo oficial calcula a decomposição **duas vezes** — atual vs anterior, e anterior vs
-anterior−1. É o que permite dizer se a *composição* do crescimento mudou, não só o ritmo: um ano
-que crescia por volume orgânico e passa a crescer por lançamento conta uma história que o número
-de topo esconde. Pedir três períodos na extração, não dois.
+O modelo oficial calcula a decomposição **duas vezes**: atual vs anterior (colunas T·U·V) e
+anterior vs anterior−1 (colunas Q·R·S). Por isso a extração precisa de **três períodos**, não dois.
+
+Uso normal: o bloco anterior serve como **referência de total** — quanto a categoria cresceu no
+ano passado. Para isso está correto e pode ser usado direto.
+
+**Comparar a composição entre os dois blocos exige um ajuste antes.** Os dois avaliam a variação
+de unidades a preços diferentes:
+
+| Bloco | Orgânico | Preço usado | É a base da comparação? |
+|---|---|---|---|
+| Atual | `(un_atual − un_ant) × O` | `O` = valor_ant ÷ un_ant | **sim** ✓ |
+| Anterior | `(un_ant − un_ant−1) × O` | `O` = valor_ant ÷ un_ant | **não** — a base é anterior−1 |
+
+O bloco anterior usa o preço do **fim** do período, não o da base. O total fecha nos dois casos
+(o resíduo absorve), mas o *split* entre orgânico e preço sai por método diferente. O viés é
+sistemático: com preço subindo ano a ano, o orgânico do bloco anterior fica sempre inflado — e a
+leitura "o crescimento deixou de ser volume e virou preço" pode inverter de sinal só por causa
+disso.
+
+Quando a comparação de composição for mesmo necessária, criar uma coluna com
+`preço_ant−1 = valor_ant−1 ÷ un_ant−1` e usá-la no orgânico do bloco anterior. É uma célula, e
+sem ela os dois anos não são comparáveis nessa dimensão.
 
 ### Notas de execução
 
