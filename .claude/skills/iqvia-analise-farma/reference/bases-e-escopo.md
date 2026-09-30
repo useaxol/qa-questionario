@@ -18,7 +18,7 @@ análise que a pergunta do briefing exige uma base que não foi contratada.
 | Como está meu preço vs concorrente? Promo? Elasticidade? | **Mercado montado** + camada de pricing | Preço praticado por loja individual, salvo contratação específica |
 | Quanto o online já pesa? Qual meu sortimento e preço lá? | **RDC** | Comparação direta com o físico sem ajuste de painel |
 | Quem trocou de marca e por quê? Onde decide? | **Consumer Health Snapshot / Shopper** | Quanto isso vale em R$ |
-| Como a rede X evolui e negocia? | **Tracking de Bandeiras / MDTR** | `[CONFIRMAR escopo]` |
+| Como a rede X evolui e negocia? | Mercado montado, dimensão bandeira — e há bases IQVIA não cobertas aqui (MDTR, Tracking de Bandeiras) | Cobertura e giro por loja dentro da rede: isso é ED |
 
 ## Perguntas de escopo a fazer no briefing
 

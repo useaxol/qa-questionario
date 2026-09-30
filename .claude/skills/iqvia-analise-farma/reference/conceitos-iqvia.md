@@ -1,7 +1,6 @@
 # Conceitos e nomenclatura IQVIA — varejo farmacêutico Brasil
 
 Referência de leitura. **Não inventar definição que não esteja aqui** — perguntar.
-Marcas `[CONFIRMAR]` indicam definição que ainda precisa ser fechada com o time.
 
 Performance A–F, CAT, matriz de ação, cálculo de oportunidade, tiers de preço e elementos de
 crescimento têm arquivo próprio: **`conceitos-ed-oportunidade.md`** (definições oficiais do deck
@@ -80,9 +79,13 @@ o que nenhum dado de venda responde.
 Publicação anual IQVIA de Consumer Health. Fonte dos números de canal (nº de lojas, share de
 canal) e do recorte de forças de consumo (Cuidar / Prevenir / Embelezar).
 
-### Outras ferramentas citadas em escopo
-- **MDTR** — aprofundamento de varejo `[CONFIRMAR definição]`
-- **Tracking de Bandeiras** — acompanhamento por bandeira de varejo `[CONFIRMAR definição]`
+### Fora desta referência
+A IQVIA opera várias outras bases além das acima — entre elas **MDTR** e
+**Tracking de Bandeiras**, citadas como caminhos para aprofundar a leitura de varejo. Não estão
+documentadas aqui.
+
+Se o briefing pedir uma delas, **parar e levantar a definição com o time antes de escopar** —
+não deduzir o que a base entrega pelo nome.
 
 ## 2. Segmentação por canal (classificação IQVIA)
 
